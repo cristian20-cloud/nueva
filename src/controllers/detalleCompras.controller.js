@@ -1,7 +1,8 @@
 // controllers/detalleCompras.controller.js
-
 import DetalleCompra from '../models/detalleCompras.model.js';
 import Producto from '../models/productos.model.js';
+import Compra from '../models/compras.model.js';
+import Talla from '../models/tallas.model.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 
 /**
@@ -13,17 +14,29 @@ const detalleCompraController = {
 
     /**
      * Obtener TODOS los detalles
-     * @route GET /api/detalle-compras
+     * @route GET /api/detallecompras
      */
     getAll: async (req, res) => {
         try {
             const detalles = await DetalleCompra.findAll({
-                include: [{
-                    model: Producto,
-                    as: 'Producto',
-                    attributes: ['IdProducto', 'Nombre', 'PrecioVenta']
-                }],
-                order: [['IdDetalleCompra', 'DESC']]
+                include: [
+                    {
+                        model: Producto,
+                        as: 'Producto',
+                        attributes: ['IdProducto', 'Nombre', 'PrecioVenta', 'url']
+                    },
+                    {
+                        model: Talla,
+                        as: 'Talla',
+                        attributes: ['IdTalla', 'Nombre']
+                    },
+                    {
+                        model: Compra,
+                        as: 'Compra',
+                        attributes: ['IdCompra', 'Fecha', 'Total']
+                    }
+                ],
+                order: [['IdDetalle', 'DESC']]
             });
 
             return successResponse(res, detalles, 'Detalles obtenidos exitosamente');
@@ -36,7 +49,7 @@ const detalleCompraController = {
 
     /**
      * Obtener detalles por compra
-     * @route GET /api/detalle-compras/compra/:compraId
+     * @route GET /api/detallecompras/compra/:compraId
      */
     getByCompra: async (req, res) => {
         try {
@@ -48,12 +61,19 @@ const detalleCompraController = {
 
             const detalles = await DetalleCompra.findAll({
                 where: { IdCompra: compraId },
-                include: [{
-                    model: Producto,
-                    as: 'Producto',
-                    attributes: ['IdProducto', 'Nombre', 'Descripcion', 'url', 'PrecioVenta']
-                }],
-                order: [['IdDetalleCompra', 'ASC']]
+                include: [
+                    {
+                        model: Producto,
+                        as: 'Producto',
+                        attributes: ['IdProducto', 'Nombre', 'Descripcion', 'url', 'PrecioVenta']
+                    },
+                    {
+                        model: Talla,
+                        as: 'Talla',
+                        attributes: ['IdTalla', 'Nombre']
+                    }
+                ],
+                order: [['IdDetalle', 'ASC']]
             });
 
             if (!detalles || detalles.length === 0) {
@@ -61,7 +81,8 @@ const detalleCompraController = {
             }
 
             const detallesFormateados = detalles.map(detalle => ({
-                IdDetalleCompra: detalle.IdDetalleCompra,
+                IdDetalle: detalle.IdDetalle,
+                IdCompra: detalle.IdCompra,
                 IdProducto: detalle.IdProducto,
                 Producto: {
                     Nombre: detalle.Producto?.Nombre || 'Producto no disponible',
@@ -69,8 +90,13 @@ const detalleCompraController = {
                     Imagen: detalle.Producto?.url,
                     PrecioVenta: detalle.Producto?.PrecioVenta
                 },
+                Talla: {
+                    IdTalla: detalle.Talla?.IdTalla,
+                    Nombre: detalle.Talla?.Nombre || 'Sin talla'
+                },
                 Cantidad: detalle.Cantidad,
-                PrecioUnitario: detalle.Precio,
+                PrecioCompra: detalle.PrecioCompra,
+                PrecioVenta: detalle.PrecioVenta,
                 Subtotal: detalle.Subtotal,
                 SubtotalFormateado: new Intl.NumberFormat('es-CO', {
                     style: 'currency',
@@ -89,7 +115,7 @@ const detalleCompraController = {
 
     /**
      * Obtener un detalle específico por ID
-     * @route GET /api/detalle-compras/:id
+     * @route GET /api/detallecompras/:id
      */
     getById: async (req, res) => {
         try {
@@ -100,11 +126,23 @@ const detalleCompraController = {
             }
 
             const detalle = await DetalleCompra.findByPk(id, {
-                include: [{
-                    model: Producto,
-                    as: 'Producto',
-                    attributes: ['IdProducto', 'Nombre', 'Descripcion', 'url', 'PrecioVenta', 'Stock']
-                }]
+                include: [
+                    {
+                        model: Producto,
+                        as: 'Producto',
+                        attributes: ['IdProducto', 'Nombre', 'Descripcion', 'url', 'PrecioVenta']
+                    },
+                    {
+                        model: Talla,
+                        as: 'Talla',
+                        attributes: ['IdTalla', 'Nombre']
+                    },
+                    {
+                        model: Compra,
+                        as: 'Compra',
+                        include: [{ model: Talla, as: 'Tallas' }]
+                    }
+                ]
             });
 
             if (!detalle) {
@@ -116,6 +154,33 @@ const detalleCompraController = {
         } catch (error) {
             console.error('❌ Error en getById:', error);
             return errorResponse(res, 'Error al obtener detalle', 500, error.message);
+        }
+    },
+
+    /**
+     * Obtener resumen de una compra (total de productos, subtotal, etc)
+     * @route GET /api/detallecompras/compra/:compraId/resumen
+     */
+    getResumenByCompra: async (req, res) => {
+        try {
+            const { compraId } = req.params;
+
+            const detalles = await DetalleCompra.findAll({
+                where: { IdCompra: compraId }
+            });
+
+            const totalProductos = detalles.reduce((sum, d) => sum + d.Cantidad, 0);
+            const subtotal = detalles.reduce((sum, d) => sum + d.Subtotal, 0);
+
+            return successResponse(res, {
+                totalProductos,
+                subtotal,
+                cantidadItems: detalles.length
+            }, 'Resumen obtenido exitosamente');
+
+        } catch (error) {
+            console.error('❌ Error en getResumenByCompra:', error);
+            return errorResponse(res, 'Error al obtener resumen', 500, error.message);
         }
     }
 };

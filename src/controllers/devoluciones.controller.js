@@ -37,7 +37,7 @@ const devolucionController = {
             
             if (search) {
                 whereClause[Op.or] = [
-                    { '$Producto.Nombre$': { [Op.like]: `%${search}%` } },
+                    { '$Producto.Nombre$': { [Op.iLike]: `%${search}%` } },
                     { IdDevolucion: isNaN(search) ? null : search },
                     { '$Venta.IdVenta$': isNaN(search) ? null : search },
                     { '$Venta.Cliente.Documento$': isNaN(search) ? null : search }
@@ -320,6 +320,23 @@ const devolucionController = {
                 });
             }
 
+            // Verificar devoluciones previas
+            const devolucionesPrevias = await Devolucion.sum('Cantidad', {
+                where: {
+                    IdVenta,
+                    IdProducto,
+                    Estado: true
+                }
+            }) || 0;
+
+            if (devolucionesPrevias + Cantidad > detalleVenta.Cantidad) {
+                await transaction.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: `La cantidad total devuelta (${devolucionesPrevias + Cantidad}) excede la cantidad vendida (${detalleVenta.Cantidad})`
+                });
+            }
+
             // Calcular monto de devolución
             const monto = Cantidad * detalleVenta.Precio;
 
@@ -340,6 +357,12 @@ const devolucionController = {
                 where: { IdProducto },
                 transaction
             });
+
+            // Actualizar el detalle de venta (marcar como devuelto parcialmente)
+            await detalleVenta.update({
+                CantidadDevuelta: devolucionesPrevias + Cantidad,
+                Devuelto: (devolucionesPrevias + Cantidad) === detalleVenta.Cantidad
+            }, { transaction });
 
             await transaction.commit();
 
@@ -440,7 +463,119 @@ const devolucionController = {
         }
     },
 
+    /**
+     * Procesar reembolso de devolución
+     * @route POST /api/devoluciones/:id/reembolso
+     */
+    procesarReembolso: async (req, res) => {
+        const transaction = await sequelize.transaction();
+        
+        try {
+            const { id } = req.params;
+            const { metodoReembolso, observaciones } = req.body;
 
+            const devolucion = await Devolucion.findByPk(id, {
+                include: [{ model: Venta, as: 'Venta' }]
+            });
+
+            if (!devolucion) {
+                await transaction.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: 'Devolución no encontrada'
+                });
+            }
+
+            if (!devolucion.Estado) {
+                await transaction.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: 'No se puede procesar reembolso de una devolución anulada'
+                });
+            }
+
+            if (devolucion.Reembolsado) {
+                await transaction.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: 'Esta devolución ya ha sido reembolsada'
+                });
+            }
+
+            await devolucion.update({
+                Reembolsado: true,
+                MetodoReembolso: metodoReembolso || 'Efectivo',
+                ObservacionesReembolso: observaciones,
+                FechaReembolso: new Date()
+            }, { transaction });
+
+            await transaction.commit();
+
+            res.json({
+                success: true,
+                data: devolucion,
+                message: 'Reembolso procesado exitosamente'
+            });
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error en procesarReembolso:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
+     * Anular devolución (NO eliminar)
+     * @route POST /api/devoluciones/:id/anular
+     */
+    anularDevolucion: async (req, res) => {
+        const transaction = await sequelize.transaction();
+        
+        try {
+            const { id } = req.params;
+            const { motivo } = req.body;
+
+            const devolucion = await Devolucion.findByPk(id);
+            if (!devolucion) {
+                await transaction.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: 'Devolución no encontrada'
+                });
+            }
+
+            if (!devolucion.Estado) {
+                await transaction.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: 'La devolución ya está anulada'
+                });
+            }
+
+            // Revertir el stock (quitar del inventario lo que se había devuelto)
+            await Producto.decrement('Stock', {
+                by: devolucion.Cantidad,
+                where: { IdProducto: devolucion.IdProducto },
+                transaction
+            });
+
+            await devolucion.update({
+                Estado: false,
+                MotivoAnulacion: motivo || 'Sin motivo especificado',
+                FechaAnulacion: new Date()
+            }, { transaction });
+
+            await transaction.commit();
+
+            res.json({
+                success: true,
+                message: 'Devolución anulada exitosamente'
+            });
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error en anularDevolucion:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
 
     /**
      * Cambiar estado de la devolución (activar/desactivar)
@@ -605,6 +740,80 @@ const devolucionController = {
     },
 
     /**
+     * Obtener devoluciones por fecha
+     * @route GET /api/devoluciones/fecha
+     */
+    getDevolucionesByFecha: async (req, res) => {
+        try {
+            const { fecha } = req.query;
+
+            if (!fecha) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Debe proporcionar una fecha'
+                });
+            }
+
+            const fechaInicio = new Date(fecha);
+            fechaInicio.setHours(0, 0, 0, 0);
+            const fechaFin = new Date(fecha);
+            fechaFin.setHours(23, 59, 59, 999);
+
+            const devoluciones = await Devolucion.findAll({
+                where: {
+                    Fecha: {
+                        [Op.between]: [fechaInicio, fechaFin]
+                    }
+                },
+                include: [
+                    { model: Producto, as: 'Producto', attributes: ['Nombre'] },
+                    { model: Venta, as: 'Venta', include: [{ model: Cliente, as: 'Cliente' }] }
+                ],
+                order: [['Fecha', 'ASC']]
+            });
+
+            res.json({
+                success: true,
+                data: devoluciones,
+                message: 'Devoluciones obtenidas exitosamente'
+            });
+        } catch (error) {
+            console.error('❌ Error en getDevolucionesByFecha:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
+     * Obtener devoluciones por cliente
+     * @route GET /api/devoluciones/cliente/:clienteId
+     */
+    getDevolucionesByCliente: async (req, res) => {
+        try {
+            const { clienteId } = req.params;
+
+            const devoluciones = await Devolucion.findAll({
+                include: [{
+                    model: Venta,
+                    as: 'Venta',
+                    where: { IdCliente: clienteId },
+                    required: true,
+                    include: [{ model: Cliente, as: 'Cliente' }]
+                }],
+                order: [['Fecha', 'DESC']]
+            });
+
+            res.json({
+                success: true,
+                data: devoluciones,
+                message: 'Devoluciones del cliente obtenidas exitosamente'
+            });
+        } catch (error) {
+            console.error('❌ Error en getDevolucionesByCliente:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
      * Obtener estadísticas de devoluciones
      * @route GET /api/devoluciones/estadisticas
      */
@@ -616,7 +825,7 @@ const devolucionController = {
             
             const totalMontoDevuelto = await Devolucion.sum('Monto', { where: { Estado: true } }) || 0;
             
-            // Devoluciones por mes
+            // Devoluciones por mes (últimos 6 meses)
             const fechaLimite = new Date();
             fechaLimite.setMonth(fechaLimite.getMonth() - 6);
             
@@ -691,6 +900,54 @@ const devolucionController = {
                 message: 'Error al obtener estadísticas',
                 error: error.message
             });
+        }
+    },
+
+    /**
+     * Generar reportes de devoluciones
+     * @route GET /api/devoluciones/reportes
+     */
+    generarReportes: async (req, res) => {
+        try {
+            const { fechaInicio, fechaFin, tipo = 'general' } = req.query;
+
+            const whereClause = { Estado: true };
+            
+            if (fechaInicio && fechaFin) {
+                whereClause.Fecha = {
+                    [Op.between]: [new Date(fechaInicio), new Date(fechaFin)]
+                };
+            }
+
+            const devoluciones = await Devolucion.findAll({
+                where: whereClause,
+                include: [
+                    { model: Producto, as: 'Producto' },
+                    { model: Venta, as: 'Venta', include: [{ model: Cliente, as: 'Cliente' }] }
+                ],
+                order: [['Fecha', 'DESC']]
+            });
+
+            const totalDevuelto = devoluciones.reduce((sum, d) => sum + d.Monto, 0);
+            const totalUnidades = devoluciones.reduce((sum, d) => sum + d.Cantidad, 0);
+
+            res.json({
+                success: true,
+                data: {
+                    tipo,
+                    periodo: { fechaInicio, fechaFin },
+                    resumen: {
+                        cantidad: devoluciones.length,
+                        totalDevuelto,
+                        totalUnidades,
+                        promedioPorDevolucion: devoluciones.length > 0 ? totalDevuelto / devoluciones.length : 0
+                    },
+                    devoluciones
+                }
+            });
+        } catch (error) {
+            console.error('❌ Error en generarReportes:', error);
+            res.status(500).json({ success: false, message: error.message });
         }
     }
 };

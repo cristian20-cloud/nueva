@@ -287,6 +287,52 @@ const proveedorController = {
     },
 
     /**
+     * Actualización parcial de proveedor (PATCH)
+     * @route PATCH /api/proveedores/:id
+     */
+    patchProveedor: async (req, res) => {
+        const transaction = await sequelize.transaction();
+        try {
+            const { id } = req.params;
+            
+            if (isNaN(id)) {
+                await transaction.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: 'ID de proveedor inválido'
+                });
+            }
+
+            const proveedor = await Proveedor.findByPk(id);
+            if (!proveedor) {
+                await transaction.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: 'Proveedor no encontrado'
+                });
+            }
+
+            // Solo actualizar campos proporcionados
+            await proveedor.update(req.body, { transaction });
+            await transaction.commit();
+
+            res.status(200).json({
+                success: true,
+                data: proveedor,
+                message: 'Proveedor actualizado parcialmente'
+            });
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error en patchProveedor:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Error al actualizar el proveedor',
+                error: error.message
+            });
+        }
+    },
+
+    /**
      * Eliminar un proveedor (borrado lógico)
      * @route DELETE /api/proveedores/:id
      */
@@ -515,6 +561,171 @@ const proveedorController = {
             res.status(500).json({
                 success: false,
                 message: 'Error al buscar proveedor por NIT',
+                error: error.message
+            });
+        }
+    },
+
+    /**
+     * Obtener proveedores públicos (catálogo)
+     * @route GET /api/proveedores/publicos
+     */
+    getProveedoresPublicos: async (req, res) => {
+        try {
+            const proveedores = await Proveedor.findAll({
+                where: { Estado: true },
+                attributes: ['IdProveedor', 'Nombre', 'TipoDocumento', 'NumeroDocumento', 'Correo', 'Telefono'],
+                limit: 50,
+                order: [['Nombre', 'ASC']]
+            });
+
+            res.status(200).json({
+                success: true,
+                data: proveedores,
+                message: 'Proveedores públicos obtenidos exitosamente'
+            });
+        } catch (error) {
+            console.error('❌ Error en getProveedoresPublicos:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Error al obtener proveedores públicos',
+                error: error.message
+            });
+        }
+    },
+
+    /**
+     * Obtener proveedor público por ID
+     * @route GET /api/proveedores/:id/publico
+     */
+    getProveedorPublicoById: async (req, res) => {
+        try {
+            const { id } = req.params;
+
+            if (isNaN(id)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'ID de proveedor inválido'
+                });
+            }
+
+            const proveedor = await Proveedor.findOne({
+                where: { IdProveedor: id, Estado: true },
+                attributes: ['IdProveedor', 'Nombre', 'TipoDocumento', 'NumeroDocumento', 'Correo', 'Telefono', 'Direccion']
+            });
+
+            if (!proveedor) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Proveedor no encontrado'
+                });
+            }
+
+            res.status(200).json({
+                success: true,
+                data: proveedor,
+                message: 'Proveedor obtenido exitosamente'
+            });
+        } catch (error) {
+            console.error('❌ Error en getProveedorPublicoById:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Error al obtener proveedor',
+                error: error.message
+            });
+        }
+    },
+
+    /**
+     * Obtener compras por proveedor
+     * @route GET /api/proveedores/:id/compras
+     */
+    getComprasByProveedor: async (req, res) => {
+        try {
+            const { id } = req.params;
+
+            if (isNaN(id)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'ID de proveedor inválido'
+                });
+            }
+
+            const proveedor = await Proveedor.findByPk(id);
+            if (!proveedor) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Proveedor no encontrado'
+                });
+            }
+
+            const compras = await Compra.findAll({
+                where: { IdProveedor: id },
+                order: [['FechaCompra', 'DESC']],
+                limit: 20
+            });
+
+            res.status(200).json({
+                success: true,
+                data: {
+                    proveedor: {
+                        IdProveedor: proveedor.IdProveedor,
+                        Nombre: proveedor.Nombre
+                    },
+                    compras
+                },
+                message: 'Compras obtenidas exitosamente'
+            });
+        } catch (error) {
+            console.error('❌ Error en getComprasByProveedor:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Error al obtener compras del proveedor',
+                error: error.message
+            });
+        }
+    },
+
+    /**
+     * Buscar proveedores (autocompletado)
+     * @route GET /api/proveedores/buscar
+     */
+    buscarProveedores: async (req, res) => {
+        try {
+            const { q } = req.query;
+
+            if (!q || q.length < 2) {
+                return res.status(200).json({
+                    success: true,
+                    data: [],
+                    message: 'Ingrese al menos 2 caracteres para buscar'
+                });
+            }
+
+            const proveedores = await Proveedor.findAll({
+                where: {
+                    [Op.or]: [
+                        { Nombre: { [Op.iLike]: `%${q}%` } },
+                        { NumeroDocumento: { [Op.iLike]: `%${q}%` } },
+                        { Correo: { [Op.iLike]: `%${q}%` } }
+                    ],
+                    Estado: true
+                },
+                attributes: ['IdProveedor', 'Nombre', 'TipoDocumento', 'NumeroDocumento', 'Correo'],
+                limit: 10,
+                order: [['Nombre', 'ASC']]
+            });
+
+            res.status(200).json({
+                success: true,
+                data: proveedores,
+                message: 'Búsqueda completada'
+            });
+        } catch (error) {
+            console.error('❌ Error en buscarProveedores:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Error al buscar proveedores',
                 error: error.message
             });
         }

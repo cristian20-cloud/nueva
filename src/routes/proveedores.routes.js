@@ -12,7 +12,6 @@ import { verifyToken, checkPermission } from '../middlewares/auth.middleware.js'
 // ============================================
 // RUTAS PÚBLICAS (sin autenticación)
 // ============================================
-// Información básica de proveedores (público)
 router.get('/publicos', proveedorController.getProveedoresPublicos);
 router.get('/:id/publico', proveedorController.getProveedorPublicoById);
 
@@ -35,19 +34,10 @@ router.get('/buscar', checkPermission('ver_proveedores'), proveedorController.bu
 // ============================================
 // RUTAS DE ADMINISTRACIÓN
 // ============================================
-// Crear proveedor
 router.post('/', checkPermission('crear_proveedores'), proveedorController.createProveedor);
-
-// Actualizar proveedor
 router.put('/:id', checkPermission('editar_proveedores'), proveedorController.updateProveedor);
-
-// Actualizar parcialmente
 router.patch('/:id', checkPermission('editar_proveedores'), proveedorController.patchProveedor);
-
-// Activar/desactivar proveedor
 router.patch('/:id/estado', checkPermission('activar_proveedores'), proveedorController.toggleProveedorStatus);
-
-// Eliminar proveedor
 router.delete('/:id', checkPermission('eliminar_proveedores'), proveedorController.deleteProveedor);
 
 export default router;

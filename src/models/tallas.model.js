@@ -43,13 +43,77 @@ const Talla = sequelize.define(
           msg: 'La cantidad no puede ser negativa'
         }
       }
+    },
+
+    // ✅ CAMPO AGREGADO: Relación con Producto
+    IdProducto: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      field: 'IdProducto',
+      comment: 'ID del producto al que pertenece esta talla',
+      references: {
+        model: 'Productos',
+        key: 'IdProducto'
+      }
+    },
+
+    // ✅ CAMPO AGREGADO: Estado de la talla
+    Estado: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+      field: 'Estado',
+      comment: 'Estado de la talla (true=activo, false=inactivo)'
     }
   },
   {
     tableName: 'Tallas',
     timestamps: false,
-    freezeTableName: true
+    freezeTableName: true,
+    // ✅ HOOKS AGREGADOS
+    hooks: {
+      beforeCreate: (talla) => {
+        console.log(`📏 Creando nueva talla: ${talla.Nombre} para producto ID: ${talla.IdProducto}`);
+      },
+      beforeUpdate: (talla) => {
+        console.log(`📏 Actualizando talla ID: ${talla.IdTalla}`);
+      }
+    }
   }
 );
+
+// ✅ MÉTODOS PERSONALIZADOS AGREGADOS
+Talla.prototype.tieneStock = function() {
+  return this.Cantidad > 0;
+};
+
+Talla.prototype.stockBajo = function(limite = 5) {
+  return this.Cantidad <= limite;
+};
+
+Talla.prototype.estaActiva = function() {
+  return this.Estado;
+};
+
+// ✅ ASOCIACIONES AGREGADAS
+Talla.associate = (models) => {
+  // Una talla pertenece a un producto
+  Talla.belongsTo(models.Producto, {
+    foreignKey: 'IdProducto',
+    as: 'Producto'
+  });
+
+  // Una talla aparece en muchos detalles de compra
+  Talla.hasMany(models.DetalleCompra, {
+    foreignKey: 'IdTalla',
+    as: 'DetallesCompra'
+  });
+
+  // Una talla aparece en muchos detalles de venta
+  Talla.hasMany(models.DetalleVenta, {
+    foreignKey: 'IdTalla',
+    as: 'DetallesVenta'
+  });
+};
 
 export default Talla;

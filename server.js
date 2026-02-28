@@ -1,13 +1,11 @@
 // server.js
 import app from './src/app.js';
-import { connectDB, sequelize } from './src/config/db.js'; // ✅ Importar sequelize también
+import { connectDB } from './src/config/db.js';
+import { sequelize } from './src/models/index.js'; // ✅ CORREGIDO: con src/
 import dotenv from 'dotenv';
 
-// ✅ IMPORTAR TODOS LOS MODELOS (obligatorio para que Sequelize los registre)
-import './src/models/usuarios.model.js';
-import './src/models/estado.model.js';      // ⚠️ Ajusta la ruta según tu estructura
-import './src/models/tallas.model.js';      // ⚠️ Ajusta la ruta según tu estructura
-// import './src/models/productos.model.js'; // Agrega el resto de modelos...
+// ✅ IMPORTAR EL ARCHIVO INDEX (con la ruta correcta)
+import './src/models/index.js';
 
 dotenv.config();
 
@@ -22,17 +20,17 @@ const startServer = async () => {
         await connectDB();
         console.log(`   📡 Servidor: http://localhost:${PORT}`);
         
-        // 2. ✅ Sincronizar modelos con la BD (crear tablas si no existen)
-        // alter: true -> Actualiza tablas sin borrar datos existentes
-        // force: false -> NO elimina tablas (seguro para producción)
-        await sequelize.sync({ alter: true, force: false });
-        console.log(`   🗄️  Base de datos: ✅ Sincronizada`);
+        // 2. ⚠️ Comentar sync por ahora
+        // await sequelize.sync({ alter: true, force: false });
         
+        console.log(`   🗄️  Base de datos: ✅ Conectada`);
         console.log(`   ⚡ Estado:    ✅ Corriendo`);
         console.log(`   📁 Entorno:   ${process.env.NODE_ENV || 'development'}`);
         
         // 3. Iniciar servidor
-        app.listen(PORT, () => {});
+        app.listen(PORT, () => {
+            console.log(`   🚀 Servidor escuchando en puerto ${PORT}`);
+        });
         
     } catch (error) {
         console.log(`   ⚡ Estado:    ❌ Error: ${error.message}`);

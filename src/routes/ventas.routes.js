@@ -7,11 +7,6 @@ import { verifyToken, checkPermission } from '../middlewares/auth.middleware.js'
 /**
  * Rutas para el módulo de Ventas
  * Base URL: /api/ventas
- * 
- * Las ventas son operaciones CRÍTICAS que afectan:
- * - Inventario (stock)
- * - Contabilidad (ingresos)
- * - Historial de clientes
  */
 
 // Todas las rutas requieren autenticación
@@ -35,30 +30,20 @@ router.get('/:id/reporte', checkPermission('ver_ventas'), ventaController.genera
 // ============================================
 // RUTAS DE CREACIÓN (hacer ventas)
 // ============================================
-// Crear venta (vendedores, cajeros, etc.)
 router.post('/', checkPermission('crear_ventas'), ventaController.createVenta);
-
-// Crear venta con múltiples productos
 router.post('/completa', checkPermission('crear_ventas'), ventaController.createVentaCompleta);
 
 // ============================================
 // RUTAS DE ADMINISTRACIÓN (gestionar ventas)
 // ============================================
-// Anular venta (NO eliminar)
 router.post('/:id/anular', checkPermission('anular_ventas'), ventaController.anularVenta);
-
-// Procesar pago
 router.post('/:id/procesar-pago', checkPermission('editar_ventas'), ventaController.procesarPago);
-
-// Actualizar estado de la venta (ej: pagado, enviado, entregado)
 router.patch('/:id/estado', checkPermission('editar_ventas'), ventaController.actualizarEstado);
 
 // ============================================
 // NOTAS IMPORTANTES:
-// ============================================
-// ❌ NO hay PUT /:id - Las ventas no se editan directamente
-// ❌ NO hay DELETE /:id - Las ventas no se eliminan por integridad contable
-// ✅ Solo se pueden CREAR, ANULAR o actualizar su ESTADO
+// - NO hay PUT /:id - Las ventas no se editan
+// - NO hay DELETE /:id - Las ventas no se eliminan
 // ============================================
 
 export default router;

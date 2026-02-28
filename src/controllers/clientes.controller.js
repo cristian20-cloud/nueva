@@ -490,6 +490,81 @@ const clienteController = {
             console.error('❌ Error en updateSaldo:', error);
             res.status(500).json({ success: false, message: error.message });
         }
+    },
+
+    /**
+     * Obtener perfil del cliente (para el propio cliente)
+     * @route GET /api/clientes/mi/perfil
+     */
+    getMiPerfil: async (req, res) => {
+        try {
+            // Asumiendo que req.usuario tiene el IdUsuario
+            const cliente = await Cliente.findOne({
+                where: { IdUsuario: req.usuario.id }
+            });
+
+            if (!cliente) {
+                return res.status(404).json({ success: false, message: 'Perfil no encontrado' });
+            }
+
+            const compras = await Venta.findAll({
+                where: { IdCliente: cliente.IdCliente },
+                order: [['Fecha', 'DESC']],
+                limit: 10
+            });
+
+            res.status(200).json({
+                success: true,
+                data: {
+                    ...cliente.toJSON(),
+                    TipoDocumentoTexto: cliente.getTipoDocumentoTexto(),
+                    UltimasCompras: compras
+                }
+            });
+        } catch (error) {
+            console.error('❌ Error en getMiPerfil:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
+     * Actualizar perfil del cliente (para el propio cliente)
+     * @route PUT /api/clientes/mi/perfil
+     */
+    updateMiPerfil: async (req, res) => {
+        const transaction = await sequelize.transaction();
+        try {
+            const cliente = await Cliente.findOne({
+                where: { IdUsuario: req.usuario.id }
+            });
+
+            if (!cliente) {
+                await transaction.rollback();
+                return res.status(404).json({ success: false, message: 'Perfil no encontrado' });
+            }
+
+            const { Nombre, Telefono, Direccion, Ciudad, Departamento } = req.body;
+
+            await cliente.update({
+                Nombre,
+                Telefono,
+                Direccion,
+                Ciudad,
+                Departamento
+            }, { transaction });
+
+            await transaction.commit();
+
+            res.status(200).json({
+                success: true,
+                data: cliente,
+                message: 'Perfil actualizado exitosamente'
+            });
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error en updateMiPerfil:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
     }
 };
 

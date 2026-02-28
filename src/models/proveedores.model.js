@@ -47,7 +47,7 @@ const Proveedor = sequelize.define('Proveedor', {
     NumeroDocumento: {
         type: DataTypes.STRING(20),
         allowNull: false,
-        unique: true,
+        unique: true, // ✅ CORRECTO - Así se define UNIQUE en Sequelize
         validate: {
             notEmpty: {
                 msg: 'El número de documento es requerido'
@@ -81,7 +81,7 @@ const Proveedor = sequelize.define('Proveedor', {
     Correo: {
         type: DataTypes.STRING(100),
         allowNull: false,
-        unique: true,
+        unique: true, // ✅ CORRECTO - Así se define UNIQUE en Sequelize
         validate: {
             isEmail: {
                 msg: 'Debe proporcionar un correo electrónico válido'
@@ -110,9 +110,15 @@ const Proveedor = sequelize.define('Proveedor', {
             if (proveedor.TipoDocumento === 'NIT' && proveedor.NumeroDocumento) {
                 proveedor.NumeroDocumento = proveedor.NumeroDocumento.replace(/\s/g, '');
             }
+            if (proveedor.Correo) {
+                proveedor.Correo = proveedor.Correo.toLowerCase().trim();
+            }
         },
         beforeUpdate: (proveedor) => {
             console.log(`📦 Actualizando proveedor ID: ${proveedor.IdProveedor}`);
+            if (proveedor.Correo) {
+                proveedor.Correo = proveedor.Correo.toLowerCase().trim();
+            }
         }
     }
 });
@@ -160,4 +166,4 @@ Proveedor.prototype.tieneCompras = async function() {
     return count > 0;
 };
 
-export default Proveedor; 
+export default Proveedor;

@@ -4,18 +4,14 @@ const router = express.Router();
 import categoriaController from '../controllers/categorias.controller.js';
 import { verifyToken, checkPermission } from '../middlewares/auth.middleware.js';
 
-/**
- * Rutas para el módulo de Categorías
- * Basado en PERMISOS, no en roles hardcodeados
- */
-
-// Rutas públicas (si aplica)
+// Rutas públicas
 router.get('/activas', categoriaController.getCategoriasActivas);
+router.get('/estadisticas', categoriaController.getEstadisticas);
 
-// Rutas protegidas (requieren autenticación)
+// Rutas protegidas
 router.use(verifyToken);
 
-// CRUD Principal basado en PERMISOS
+// CRUD Principal
 router.get('/', checkPermission('ver_categorias'), categoriaController.getAllCategorias);
 router.get('/:id', checkPermission('ver_categorias'), categoriaController.getCategoriaById);
 router.post('/', checkPermission('crear_categorias'), categoriaController.createCategoria);

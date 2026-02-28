@@ -52,12 +52,28 @@ const rolController = {
                     where: { IdRol: rol.IdRol }
                 });
 
+                // Obtener permisos del rol
+                const permisos = await DetallePermiso.findAll({
+                    where: { IdRol: rol.IdRol },
+                    include: [{
+                        model: Permiso,
+                        as: 'Permiso',
+                        attributes: ['IdPermiso', 'Nombre', 'Modulo']
+                    }]
+                });
+
                 return {
                     IdRol: rol.IdRol,
                     Nombre: rol.Nombre,
+                    Descripcion: rol.Descripcion,
                     Estado: rol.Estado,
                     EstadoTexto: rol.Estado ? 'Activo' : 'Inactivo',
-                    CantidadUsuarios: cantidadUsuarios
+                    CantidadUsuarios: cantidadUsuarios,
+                    Permisos: permisos.map(p => ({
+                        IdPermiso: p.IdPermiso,
+                        Nombre: p.Permiso?.Nombre,
+                        Modulo: p.Permiso?.Modulo
+                    }))
                 };
             }));
 
@@ -139,14 +155,23 @@ const rolController = {
                 });
             });
 
+            // Obtener usuarios con este rol
+            const usuarios = await Usuario.findAll({
+                where: { IdRol: id, Estado: 'activo' },
+                attributes: ['IdUsuario', 'Nombre', 'Correo'],
+                limit: 10
+            });
+
             res.status(200).json({
                 success: true,
                 data: {
                     IdRol: rol.IdRol,
                     Nombre: rol.Nombre,
+                    Descripcion: rol.Descripcion,
                     Estado: rol.Estado,
                     PermisosAsignados: permisos.map(p => p.IdPermiso),
-                    PermisosPorModulo: permisosPorModulo
+                    PermisosPorModulo: permisosPorModulo,
+                    Usuarios: usuarios
                 },
                 message: 'Rol obtenido exitosamente'
             });
@@ -162,6 +187,39 @@ const rolController = {
     },
 
     /**
+     * Obtener permisos de un rol
+     * @route GET /api/roles/:id/permisos
+     */
+    getPermisosByRol: async (req, res) => {
+        try {
+            const { id } = req.params;
+
+            const permisos = await DetallePermiso.findAll({
+                where: { IdRol: id },
+                include: [{
+                    model: Permiso,
+                    as: 'Permiso',
+                    attributes: ['IdPermiso', 'Nombre', 'Modulo', 'Accion']
+                }]
+            });
+
+            res.status(200).json({
+                success: true,
+                data: permisos.map(p => p.Permiso),
+                message: 'Permisos del rol obtenidos exitosamente'
+            });
+
+        } catch (error) {
+            console.error('❌ Error en getPermisosByRol:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Error al obtener permisos del rol',
+                error: error.message
+            });
+        }
+    },
+
+    /**
      * Crear un nuevo rol
      * @route POST /api/roles
      */
@@ -169,10 +227,10 @@ const rolController = {
         const transaction = await sequelize.transaction();
         
         try {
-            const { Nombre, permisos = [] } = req.body;
+            const { Nombre, Descripcion, permisos = [] } = req.body;
 
             // Validar datos
-            const validationErrors = await validateRol({ Nombre });
+            const validationErrors = await validateRol({ Nombre, Descripcion });
             if (validationErrors.length > 0) {
                 await transaction.rollback();
                 return res.status(400).json({
@@ -185,7 +243,9 @@ const rolController = {
             // Crear rol
             const nuevoRol = await Rol.create({
                 Nombre,
-                Estado: true
+                Descripcion,
+                Estado: true,
+                Permisos: permisos // Guardar en cache
             }, { transaction });
 
             // Asignar permisos si se proporcionan
@@ -205,6 +265,7 @@ const rolController = {
                 data: {
                     IdRol: nuevoRol.IdRol,
                     Nombre: nuevoRol.Nombre,
+                    Descripcion: nuevoRol.Descripcion,
                     PermisosAsignados: permisos
                 },
                 message: 'Rol creado exitosamente'
@@ -238,7 +299,7 @@ const rolController = {
         
         try {
             const { id } = req.params;
-            const { Nombre, Estado } = req.body;
+            const { Nombre, Descripcion, Estado } = req.body;
 
             if (isNaN(id)) {
                 await transaction.rollback();
@@ -272,6 +333,7 @@ const rolController = {
 
             const updateData = {};
             if (Nombre) updateData.Nombre = Nombre;
+            if (Descripcion !== undefined) updateData.Descripcion = Descripcion;
             if (Estado !== undefined) updateData.Estado = Estado;
 
             await rol.update(updateData, { transaction });
@@ -282,6 +344,7 @@ const rolController = {
                 data: {
                     IdRol: rol.IdRol,
                     Nombre: rol.Nombre,
+                    Descripcion: rol.Descripcion,
                     Estado: rol.Estado
                 },
                 message: 'Rol actualizado exitosamente'
@@ -301,6 +364,102 @@ const rolController = {
             res.status(500).json({
                 success: false,
                 message: 'Error al actualizar el rol',
+                error: error.message
+            });
+        }
+    },
+
+    /**
+     * Actualización parcial de rol
+     * @route PATCH /api/roles/:id
+     */
+    patchRol: async (req, res) => {
+        const transaction = await sequelize.transaction();
+        try {
+            const { id } = req.params;
+
+            if (isNaN(id)) {
+                await transaction.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: 'ID de rol inválido'
+                });
+            }
+
+            const rol = await Rol.findByPk(id);
+            if (!rol) {
+                await transaction.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: 'Rol no encontrado'
+                });
+            }
+
+            await rol.update(req.body, { transaction });
+            await transaction.commit();
+
+            res.status(200).json({
+                success: true,
+                data: rol,
+                message: 'Rol actualizado parcialmente'
+            });
+
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error en patchRol:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Error al actualizar el rol',
+                error: error.message
+            });
+        }
+    },
+
+    /**
+     * Activar/desactivar rol
+     * @route PATCH /api/roles/:id/estado
+     */
+    toggleRolStatus: async (req, res) => {
+        const transaction = await sequelize.transaction();
+        try {
+            const { id } = req.params;
+
+            if (isNaN(id)) {
+                await transaction.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: 'ID de rol inválido'
+                });
+            }
+
+            const rol = await Rol.findByPk(id);
+            if (!rol) {
+                await transaction.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: 'Rol no encontrado'
+                });
+            }
+
+            await rol.update({ Estado: !rol.Estado }, { transaction });
+            await transaction.commit();
+
+            res.status(200).json({
+                success: true,
+                data: {
+                    IdRol: rol.IdRol,
+                    Estado: rol.Estado,
+                    EstadoTexto: rol.Estado ? 'Activo' : 'Inactivo'
+                },
+                message: `Rol ${rol.Estado ? 'activado' : 'desactivado'} exitosamente`
+            });
+
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error en toggleRolStatus:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Error al cambiar el estado del rol',
                 error: error.message
             });
         }
@@ -342,16 +501,28 @@ const rolController = {
                 await transaction.rollback();
                 return res.status(400).json({
                     success: false,
-                    message: 'No se puede eliminar el rol porque tiene usuarios asignados'
+                    message: `No se puede eliminar el rol porque tiene ${usuariosAsignados} usuarios asignados`
                 });
             }
 
+            // Eliminar permisos asociados
+            await DetallePermiso.destroy({
+                where: { IdRol: id },
+                transaction
+            });
+
+            // Eliminar el rol (físicamente o lógicamente)
+            // Opción 1: Borrado físico (real)
+            // await rol.destroy({ transaction });
+            
+            // Opción 2: Borrado lógico (recomendado)
             await rol.update({ Estado: false }, { transaction });
+
             await transaction.commit();
 
             res.status(200).json({
                 success: true,
-                message: 'Rol desactivado exitosamente'
+                message: 'Rol eliminado exitosamente'
             });
 
         } catch (error) {
@@ -415,6 +586,9 @@ const rolController = {
                 }, { transaction });
             }
 
+            // Actualizar cache en el rol
+            await rol.update({ Permisos: permisos }, { transaction });
+
             await transaction.commit();
 
             res.status(200).json({
@@ -438,6 +612,126 @@ const rolController = {
     },
 
     /**
+     * Agregar un permiso específico a un rol
+     * @route POST /api/roles/:id/permisos/agregar
+     */
+    agregarPermiso: async (req, res) => {
+        const transaction = await sequelize.transaction();
+        
+        try {
+            const { id } = req.params;
+            const { idPermiso } = req.body;
+
+            if (isNaN(id)) {
+                await transaction.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: 'ID de rol inválido'
+                });
+            }
+
+            const rol = await Rol.findByPk(id);
+            if (!rol) {
+                await transaction.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: 'Rol no encontrado'
+                });
+            }
+
+            // Verificar si ya tiene el permiso
+            const existe = await DetallePermiso.findOne({
+                where: { IdRol: id, IdPermiso: idPermiso }
+            });
+
+            if (!existe) {
+                await DetallePermiso.create({
+                    IdRol: id,
+                    IdPermiso: idPermiso
+                }, { transaction });
+
+                // Actualizar cache
+                const permisosActuales = rol.Permisos || [];
+                await rol.update({
+                    Permisos: [...permisosActuales, idPermiso]
+                }, { transaction });
+            }
+
+            await transaction.commit();
+
+            res.status(200).json({
+                success: true,
+                message: 'Permiso agregado exitosamente'
+            });
+
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error en agregarPermiso:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Error al agregar permiso',
+                error: error.message
+            });
+        }
+    },
+
+    /**
+     * Quitar un permiso específico de un rol
+     * @route DELETE /api/roles/:id/permisos/:permisoId
+     */
+    quitarPermiso: async (req, res) => {
+        const transaction = await sequelize.transaction();
+        
+        try {
+            const { id, permisoId } = req.params;
+
+            if (isNaN(id)) {
+                await transaction.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: 'ID de rol inválido'
+                });
+            }
+
+            const rol = await Rol.findByPk(id);
+            if (!rol) {
+                await transaction.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: 'Rol no encontrado'
+                });
+            }
+
+            await DetallePermiso.destroy({
+                where: { IdRol: id, IdPermiso: permisoId },
+                transaction
+            });
+
+            // Actualizar cache
+            const permisosActuales = rol.Permisos || [];
+            await rol.update({
+                Permisos: permisosActuales.filter(p => p !== permisoId)
+            }, { transaction });
+
+            await transaction.commit();
+
+            res.status(200).json({
+                success: true,
+                message: 'Permiso removido exitosamente'
+            });
+
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error en quitarPermiso:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Error al quitar permiso',
+                error: error.message
+            });
+        }
+    },
+
+    /**
      * Obtener roles activos (para selects)
      * @route GET /api/roles/activos
      */
@@ -445,7 +739,7 @@ const rolController = {
         try {
             const roles = await Rol.findAll({
                 where: { Estado: true },
-                attributes: ['IdRol', 'Nombre'],
+                attributes: ['IdRol', 'Nombre', 'Descripcion'],
                 order: [['Nombre', 'ASC']]
             });
 

@@ -5,11 +5,11 @@ import Producto from '../models/productos.model.js';
 import { validateCategoria, sanitizeCategoria } from '../utils/validationUtils.js';
 import { successResponse, errorResponse, paginationResponse } from '../utils/response.js';
 
-/**
- * Controlador de Categorías - CRUD COMPLETO
- */
 const categoriaController = {
-    // GET /api/categorias - Obtener todas (con filtros)
+    /**
+     * Obtener todas las categorías
+     * @route GET /api/categorias
+     */
     getAllCategorias: async (req, res) => {
         try {
             const { page = 1, limit = 10, search = '', estado } = req.query;
@@ -60,7 +60,10 @@ const categoriaController = {
         }
     },
 
-    // GET /api/categorias/:id - Obtener una categoría por ID
+    /**
+     * Obtener categoría por ID
+     * @route GET /api/categorias/:id
+     */
     getCategoriaById: async (req, res) => {
         try {
             const { id } = req.params;
@@ -93,7 +96,10 @@ const categoriaController = {
         }
     },
 
-    // POST /api/categorias - Crear nueva categoría
+    /**
+     * Crear categoría
+     * @route POST /api/categorias
+     */
     createCategoria: async (req, res) => {
         try {
             const { Nombre, Estado = true } = req.body;
@@ -119,7 +125,10 @@ const categoriaController = {
         }
     },
 
-    // PUT /api/categorias/:id - Actualizar categoría
+    /**
+     * Actualizar categoría
+     * @route PUT /api/categorias/:id
+     */
     updateCategoria: async (req, res) => {
         try {
             const { id } = req.params;
@@ -155,7 +164,10 @@ const categoriaController = {
         }
     },
 
-    // DELETE /api/categorias/:id - Eliminar categoría
+    /**
+     * Eliminar categoría
+     * @route DELETE /api/categorias/:id
+     */
     deleteCategoria: async (req, res) => {
         try {
             const { id } = req.params;
@@ -189,7 +201,10 @@ const categoriaController = {
         }
     },
 
-    // PATCH /api/categorias/:id/estado - Cambiar estado
+    /**
+     * Cambiar estado de categoría
+     * @route PATCH /api/categorias/:id/estado
+     */
     toggleCategoriaStatus: async (req, res) => {
         try {
             const { id } = req.params;
@@ -217,7 +232,10 @@ const categoriaController = {
         }
     },
 
-    // GET /api/categorias/activas - Obtener solo categorías activas
+    /**
+     * Obtener categorías activas
+     * @route GET /api/categorias/activas
+     */
     getCategoriasActivas: async (req, res) => {
         try {
             const categorias = await Categoria.findAll({
@@ -234,7 +252,10 @@ const categoriaController = {
         }
     },
 
-    // GET /api/categorias/estadisticas - Estadísticas de categorías
+    /**
+     * Obtener estadísticas de categorías
+     * @route GET /api/categorias/estadisticas
+     */
     getEstadisticas: async (req, res) => {
         try {
             const totalCategorias = await Categoria.count();

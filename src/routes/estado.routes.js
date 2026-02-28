@@ -7,35 +7,27 @@ import { verifyToken, checkPermission } from '../middlewares/auth.middleware.js'
 /**
  * Rutas para el módulo de Estados (Catálogo)
  * Base URL: /api/estados
- * 
- * Los estados son datos maestros del sistema
- * (Ej: estado de pedido, estado de pago, etc.)
  */
 
 // ============================================
 // RUTAS PÚBLICAS (solo consulta)
 // ============================================
-// Cualquier persona puede ver los estados (catálogo público)
 router.get('/', estadoController.getAll);
-router.get('/:id', estadoController.getById);
 router.get('/tipo/:tipo', estadoController.getByTipo);
+router.get('/:id', estadoController.getById);
 
 // ============================================
-// RUTAS PROTEGIDAS (requieren autenticación y permisos)
+// RUTAS PROTEGIDAS (requieren autenticación)
 // ============================================
-// Las siguientes rutas requieren token
 router.use(verifyToken);
 
-// Crear nuevo estado (solo admin o roles con permiso)
+// ============================================
+// RUTAS DE ADMINISTRACIÓN
+// ============================================
 router.post('/', checkPermission('crear_estados'), estadoController.create);
-
-// Actualizar estado existente
 router.put('/:id', checkPermission('editar_estados'), estadoController.update);
-
-// Eliminar estado (solo admin, con permiso especial)
-router.delete('/:id', checkPermission('eliminar_estados'), estadoController.delete);
-
-// Cambiar estado (activar/desactivar)
+router.patch('/:id', checkPermission('editar_estados'), estadoController.patch);
 router.patch('/:id/estado', checkPermission('activar_estados'), estadoController.toggleStatus);
+router.delete('/:id', checkPermission('eliminar_estados'), estadoController.delete);
 
 export default router;

@@ -4,6 +4,7 @@ import Usuario from '../models/usuarios.model.js';
 import Rol from '../models/roles.model.js';
 import Cliente from '../models/clientes.model.js';
 import DetallePermiso from '../models/detallePermisos.model.js';
+import Permiso from '../models/permisos.model.js';
 import { validateUsuario, validateCambioClave } from '../utils/validationUtils.js';
 import { sequelize } from '../config/db.js';
 
@@ -96,7 +97,7 @@ const usuarioController = {
     },
 
     /**
-     * 🟢 NUEVO: Obtener usuarios pendientes de aprobación
+     * Obtener usuarios pendientes de aprobación
      * @route GET /api/usuarios/pendientes
      */
     getUsuariosPendientes: async (req, res) => {
@@ -132,8 +133,8 @@ const usuarioController = {
     },
 
     /**
-     * 🟢 NUEVO: Aprobar usuario (cambiar estado a activo y asignar rol)
-     * @route PUT /api/usuarios/:id/aprobar
+     * Aprobar usuario (cambiar estado a activo y asignar rol)
+     * @route POST /api/usuarios/:id/aprobar
      */
     aprobarUsuario: async (req, res) => {
         const transaction = await sequelize.transaction();
@@ -189,6 +190,47 @@ const usuarioController = {
     },
 
     /**
+     * Rechazar usuario
+     * @route POST /api/usuarios/:id/rechazar
+     */
+    rechazarUsuario: async (req, res) => {
+        const transaction = await sequelize.transaction();
+        
+        try {
+            const { id } = req.params;
+            const { motivo } = req.body;
+
+            if (isNaN(id)) {
+                await transaction.rollback();
+                return res.status(400).json({ success: false, message: 'ID inválido' });
+            }
+
+            const usuario = await Usuario.findByPk(id);
+            if (!usuario) {
+                await transaction.rollback();
+                return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+            }
+
+            await usuario.update({ 
+                Estado: 'inactivo',
+                MotivoRechazo: motivo || 'Sin motivo especificado'
+            }, { transaction });
+            
+            await transaction.commit();
+
+            res.json({
+                success: true,
+                message: 'Usuario rechazado exitosamente'
+            });
+
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error en rechazarUsuario:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
      * Obtener un usuario por ID
      * @route GET /api/usuarios/:id
      */
@@ -205,12 +247,12 @@ const usuarioController = {
                     {
                         model: Rol,
                         as: 'Rol',
-                        attributes: ['IdRol', 'Nombre']
+                        attributes: ['IdRol', 'Nombre', 'Descripcion']
                     },
                     {
                         model: Cliente,
                         as: 'Cliente',
-                        attributes: ['IdCliente', 'Documento', 'Telefono']
+                        required: false
                     }
                 ],
                 attributes: { exclude: ['Clave'] }
@@ -220,6 +262,16 @@ const usuarioController = {
                 return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
             }
 
+            // Obtener permisos del rol
+            const permisos = await DetallePermiso.findAll({
+                where: { IdRol: usuario.IdRol },
+                include: [{
+                    model: Permiso,
+                    as: 'Permiso',
+                    attributes: ['IdPermiso', 'Nombre', 'Modulo']
+                }]
+            });
+
             res.json({
                 success: true,
                 data: {
@@ -228,11 +280,13 @@ const usuarioController = {
                     Correo: usuario.Correo,
                     Tipo: usuario.Tipo,
                     Rol: usuario.Rol?.Nombre,
+                    RolDescripcion: usuario.Rol?.Descripcion,
                     IdRol: usuario.IdRol,
                     Estado: usuario.Estado,
                     EstadoTexto: usuario.Estado === 'activo' ? 'Activado' : 
                                  usuario.Estado === 'pendiente' ? 'Pendiente' : 'Desactivado',
-                    Cliente: usuario.Cliente
+                    Cliente: usuario.Cliente,
+                    Permisos: permisos.map(p => p.Permiso)
                 }
             });
 
@@ -243,7 +297,7 @@ const usuarioController = {
     },
 
     /**
-     * 🟢 MODIFICADO: Crear un nuevo usuario (admin) con Tipo
+     * Crear un nuevo usuario (admin)
      * @route POST /api/usuarios
      */
     createUsuario: async (req, res) => {
@@ -365,6 +419,42 @@ const usuarioController = {
                 return res.status(400).json({ success: false, message: 'El correo ya está registrado' });
             }
             
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
+     * Actualización parcial de usuario
+     * @route PATCH /api/usuarios/:id
+     */
+    patchUsuario: async (req, res) => {
+        const transaction = await sequelize.transaction();
+        try {
+            const { id } = req.params;
+
+            if (isNaN(id)) {
+                await transaction.rollback();
+                return res.status(400).json({ success: false, message: 'ID de usuario inválido' });
+            }
+
+            const usuario = await Usuario.findByPk(id);
+            if (!usuario) {
+                await transaction.rollback();
+                return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+            }
+
+            await usuario.update(req.body, { transaction });
+            await transaction.commit();
+
+            res.json({ 
+                success: true, 
+                data: usuario, 
+                message: 'Usuario actualizado parcialmente' 
+            });
+
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error en patchUsuario:', error);
             res.status(500).json({ success: false, message: error.message });
         }
     },
@@ -515,6 +605,177 @@ const usuarioController = {
     },
 
     /**
+     * Cambiar mi propia contraseña
+     * @route POST /api/usuarios/perfil/cambiar-clave
+     */
+    cambiarMiClave: async (req, res) => {
+        const transaction = await sequelize.transaction();
+        
+        try {
+            const { claveActual, claveNueva } = req.body;
+            const usuario = await Usuario.findByPk(req.usuario.IdUsuario);
+
+            if (!usuario) {
+                await transaction.rollback();
+                return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+            }
+
+            // Validar contraseña
+            const errors = validateCambioClave({ claveActual, claveNueva });
+            if (errors.length > 0) {
+                await transaction.rollback();
+                return res.status(400).json({ success: false, errors });
+            }
+
+            // Verificar contraseña actual
+            const valida = await usuario.validarClave(claveActual);
+            if (!valida) {
+                await transaction.rollback();
+                return res.status(400).json({ success: false, message: 'Contraseña actual incorrecta' });
+            }
+
+            // Actualizar contraseña
+            usuario.Clave = claveNueva;
+            await usuario.save({ transaction });
+            await transaction.commit();
+
+            res.json({ success: true, message: 'Contraseña cambiada exitosamente' });
+
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error en cambiarMiClave:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
+     * Resetear contraseña (admin)
+     * @route POST /api/usuarios/:id/resetear-clave
+     */
+    resetearClave: async (req, res) => {
+        const transaction = await sequelize.transaction();
+        
+        try {
+            const { id } = req.params;
+            const { nuevaClave } = req.body;
+
+            if (isNaN(id)) {
+                await transaction.rollback();
+                return res.status(400).json({ success: false, message: 'ID de usuario inválido' });
+            }
+
+            const usuario = await Usuario.findByPk(id);
+            if (!usuario) {
+                await transaction.rollback();
+                return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+            }
+
+            // Generar contraseña por defecto si no se proporciona
+            const claveFinal = nuevaClave || '123456';
+
+            usuario.Clave = claveFinal;
+            await usuario.save({ transaction });
+            await transaction.commit();
+
+            res.json({ 
+                success: true, 
+                message: `Contraseña reseteada exitosamente${!nuevaClave ? ' (contraseña por defecto: 123456)' : ''}` 
+            });
+
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error en resetearClave:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
+     * Asignar rol a usuario
+     * @route POST /api/usuarios/:id/asignar-rol
+     */
+    asignarRol: async (req, res) => {
+        const transaction = await sequelize.transaction();
+        
+        try {
+            const { id } = req.params;
+            const { IdRol } = req.body;
+
+            if (isNaN(id)) {
+                await transaction.rollback();
+                return res.status(400).json({ success: false, message: 'ID de usuario inválido' });
+            }
+
+            const usuario = await Usuario.findByPk(id);
+            if (!usuario) {
+                await transaction.rollback();
+                return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+            }
+
+            // Verificar rol
+            const rol = await Rol.findByPk(IdRol);
+            if (!rol || !rol.Estado) {
+                await transaction.rollback();
+                return res.status(400).json({ success: false, message: 'Rol no válido' });
+            }
+
+            await usuario.update({ IdRol }, { transaction });
+            await transaction.commit();
+
+            res.json({
+                success: true,
+                data: {
+                    IdUsuario: usuario.IdUsuario,
+                    Nombre: usuario.Nombre,
+                    IdRol: usuario.IdRol,
+                    Rol: rol.Nombre
+                },
+                message: 'Rol asignado exitosamente'
+            });
+
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error en asignarRol:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
+     * Quitar rol de usuario
+     * @route DELETE /api/usuarios/:id/rol
+     */
+    quitarRol: async (req, res) => {
+        const transaction = await sequelize.transaction();
+        
+        try {
+            const { id } = req.params;
+
+            if (isNaN(id)) {
+                await transaction.rollback();
+                return res.status(400).json({ success: false, message: 'ID de usuario inválido' });
+            }
+
+            const usuario = await Usuario.findByPk(id);
+            if (!usuario) {
+                await transaction.rollback();
+                return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+            }
+
+            await usuario.update({ IdRol: null }, { transaction });
+            await transaction.commit();
+
+            res.json({
+                success: true,
+                message: 'Rol removido exitosamente'
+            });
+
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error en quitarRol:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
      * Obtener usuarios activos (para selects)
      * @route GET /api/usuarios/activos
      */
@@ -548,6 +809,38 @@ const usuarioController = {
     },
 
     /**
+     * Buscar usuarios
+     * @route GET /api/usuarios/buscar
+     */
+    buscarUsuarios: async (req, res) => {
+        try {
+            const { q } = req.query;
+
+            if (!q || q.length < 2) {
+                return res.json({ success: true, data: [] });
+            }
+
+            const usuarios = await Usuario.findAll({
+                where: {
+                    [Op.or]: [
+                        { Nombre: { [Op.iLike]: `%${q}%` } },
+                        { Correo: { [Op.iLike]: `%${q}%` } }
+                    ],
+                    Estado: 'activo'
+                },
+                attributes: ['IdUsuario', 'Nombre', 'Correo', 'Tipo'],
+                limit: 10
+            });
+
+            res.json({ success: true, data: usuarios });
+
+        } catch (error) {
+            console.error('❌ Error en buscarUsuarios:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
      * Obtener perfil del usuario actual
      * @route GET /api/usuarios/perfil
      */
@@ -558,7 +851,7 @@ const usuarioController = {
                     {
                         model: Rol,
                         as: 'Rol',
-                        attributes: ['Nombre', 'Permisos']
+                        attributes: ['IdRol', 'Nombre', 'Descripcion', 'Permisos']
                     },
                     {
                         model: Cliente,
@@ -570,13 +863,17 @@ const usuarioController = {
             });
 
             // Obtener permisos detallados
-            const permisos = await DetallePermiso.findAll({
-                where: { IdRol: usuario.IdRol },
-                include: [{
-                    model: Permiso,
-                    as: 'Permiso'
-                }]
-            });
+            let permisos = [];
+            if (usuario.IdRol) {
+                permisos = await DetallePermiso.findAll({
+                    where: { IdRol: usuario.IdRol },
+                    include: [{
+                        model: Permiso,
+                        as: 'Permiso',
+                        attributes: ['IdPermiso', 'Nombre', 'Modulo', 'Accion']
+                    }]
+                });
+            }
 
             res.json({ 
                 success: true, 
@@ -619,7 +916,7 @@ const usuarioController = {
             // Si es cliente, actualizar también en tabla Clientes
             if (usuario.Tipo === 'cliente') {
                 await Cliente.update(
-                    { Nombre: Nombre, Correo: Correo },
+                    { Nombre, Correo: Correo?.toLowerCase().trim() },
                     { where: { IdUsuario: usuario.IdUsuario }, transaction }
                 );
             }
@@ -657,6 +954,7 @@ const usuarioController = {
                     as: 'Rol',
                     attributes: ['Nombre']
                 }],
+                where: { Estado: 'activo' },
                 group: ['IdRol']
             });
 

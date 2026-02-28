@@ -3,6 +3,7 @@ import { Op } from 'sequelize';
 import Producto from '../models/productos.model.js';
 import Categoria from '../models/categorias.model.js';
 import Talla from '../models/tallas.model.js';
+import Imagen from '../models/imagenes.model.js';
 import { sequelize } from '../config/db.js';
 import { validateProducto, sanitizeProducto } from '../utils/validationUtils.js';
 
@@ -26,8 +27,9 @@ const productoController = {
             const { count, rows } = await Producto.findAndCountAll({
                 where: whereClause,
                 include: [
-                    { model: Categoria, as: 'Categoria', attributes: ['Nombre'] },
-                    { model: Talla, as: 'Tallas', attributes: ['IdTalla', 'Nombre', 'Cantidad'] }
+                    { model: Categoria, as: 'Categoria', attributes: ['IdCategoria', 'Nombre'] },
+                    { model: Talla, as: 'Tallas', attributes: ['IdTalla', 'Nombre', 'Cantidad'] },
+                    { model: Imagen, as: 'Imagenes', attributes: ['IdImagen', 'Url', 'EsPrincipal'] }
                 ],
                 limit: parseInt(limit),
                 offset: parseInt(offset),
@@ -37,10 +39,14 @@ const productoController = {
             // Calcular stock total para cada producto
             const productosConStock = rows.map(producto => {
                 const stockTotal = producto.Tallas?.reduce((sum, t) => sum + t.Cantidad, 0) || 0;
+                const imagenPrincipal = producto.Imagenes?.find(img => img.EsPrincipal)?.Url || 
+                                        producto.Imagenes?.[0]?.Url || null;
+                
                 return {
                     ...producto.toJSON(),
                     stockTotal,
-                    precioEfectivo: producto.EnOferta ? producto.PrecioOferta : producto.PrecioVenta
+                    precioEfectivo: producto.EnOferta ? producto.PrecioOferta : producto.PrecioVenta,
+                    imagenPrincipal
                 };
             });
 
@@ -54,6 +60,7 @@ const productoController = {
                 }
             });
         } catch (error) {
+            console.error('❌ Error en getAllProductos:', error);
             res.status(500).json({ success: false, message: error.message });
         }
     },
@@ -68,7 +75,8 @@ const productoController = {
             const producto = await Producto.findByPk(id, {
                 include: [
                     { model: Categoria, as: 'Categoria', attributes: ['IdCategoria', 'Nombre'] },
-                    { model: Talla, as: 'Tallas', attributes: ['IdTalla', 'Nombre', 'Cantidad'] }
+                    { model: Talla, as: 'Tallas', attributes: ['IdTalla', 'Nombre', 'Cantidad'] },
+                    { model: Imagen, as: 'Imagenes', attributes: ['IdImagen', 'Url', 'EsPrincipal'] }
                 ]
             });
 
@@ -77,16 +85,125 @@ const productoController = {
             }
 
             const stockTotal = producto.Tallas?.reduce((sum, t) => sum + t.Cantidad, 0) || 0;
+            const imagenPrincipal = producto.Imagenes?.find(img => img.EsPrincipal)?.Url || 
+                                    producto.Imagenes?.[0]?.Url || null;
 
             res.json({
                 success: true,
                 data: {
                     ...producto.toJSON(),
                     stockTotal,
-                    precioEfectivo: producto.EnOferta ? producto.PrecioOferta : producto.PrecioVenta
+                    precioEfectivo: producto.EnOferta ? producto.PrecioOferta : producto.PrecioVenta,
+                    imagenPrincipal
                 }
             });
         } catch (error) {
+            console.error('❌ Error en getProductoById:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
+     * Obtener productos por categoría
+     */
+    getProductosByCategoria: async (req, res) => {
+        try {
+            const { categoriaId } = req.params;
+            const productos = await Producto.findAll({
+                where: { IdCategoria: categoriaId, Estado: true },
+                include: [
+                    { model: Categoria, as: 'Categoria' },
+                    { model: Talla, as: 'Tallas' },
+                    { model: Imagen, as: 'Imagenes' }
+                ]
+            });
+            res.json({ success: true, data: productos });
+        } catch (error) {
+            console.error('❌ Error en getProductosByCategoria:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
+     * Obtener productos por talla
+     */
+    getProductosByTalla: async (req, res) => {
+        try {
+            const { tallaId } = req.params;
+            const productos = await Producto.findAll({
+                include: [
+                    {
+                        model: Talla,
+                        as: 'Tallas',
+                        where: { IdTalla: tallaId },
+                        required: true
+                    },
+                    { model: Categoria, as: 'Categoria' },
+                    { model: Imagen, as: 'Imagenes' }
+                ]
+            });
+            res.json({ success: true, data: productos });
+        } catch (error) {
+            console.error('❌ Error en getProductosByTalla:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
+     * Obtener productos con stock bajo
+     */
+    getProductosStockBajo: async (req, res) => {
+        try {
+            const { umbral = 5 } = req.query;
+            const productos = await Producto.findAll({
+                include: [
+                    {
+                        model: Talla,
+                        as: 'Tallas',
+                        required: true
+                    },
+                    { model: Categoria, as: 'Categoria' }
+                ]
+            });
+            
+            const productosStockBajo = productos.filter(producto => {
+                const stockTotal = producto.Tallas?.reduce((sum, t) => sum + t.Cantidad, 0) || 0;
+                return stockTotal < umbral;
+            }).map(p => ({
+                IdProducto: p.IdProducto,
+                Nombre: p.Nombre,
+                Categoria: p.Categoria?.Nombre,
+                StockTotal: p.Tallas?.reduce((sum, t) => sum + t.Cantidad, 0) || 0,
+                Tallas: p.Tallas
+            }));
+
+            res.json({ success: true, data: productosStockBajo });
+        } catch (error) {
+            console.error('❌ Error en getProductosStockBajo:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
+     * Buscar productos
+     */
+    buscarProductos: async (req, res) => {
+        try {
+            const { q } = req.query;
+            const productos = await Producto.findAll({
+                where: {
+                    Nombre: { [Op.iLike]: `%${q}%` },
+                    Estado: true
+                },
+                include: [
+                    { model: Categoria, as: 'Categoria' },
+                    { model: Talla, as: 'Tallas' }
+                ],
+                limit: 20
+            });
+            res.json({ success: true, data: productos });
+        } catch (error) {
+            console.error('❌ Error en buscarProductos:', error);
             res.status(500).json({ success: false, message: error.message });
         }
     },
@@ -121,12 +238,13 @@ const productoController = {
             });
         } catch (error) {
             await transaction.rollback();
+            console.error('❌ Error en createProducto:', error);
             res.status(500).json({ success: false, message: error.message });
         }
     },
 
     /**
-     * Actualizar producto
+     * Actualizar producto completo
      */
     updateProducto: async (req, res) => {
         const transaction = await sequelize.transaction();
@@ -158,6 +276,90 @@ const productoController = {
             });
         } catch (error) {
             await transaction.rollback();
+            console.error('❌ Error en updateProducto:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
+     * Actualización parcial de producto (PATCH)
+     */
+    patchProducto: async (req, res) => {
+        const transaction = await sequelize.transaction();
+        try {
+            const { id } = req.params;
+            const producto = await Producto.findByPk(id);
+            if (!producto) {
+                await transaction.rollback();
+                return res.status(404).json({ success: false, message: 'Producto no encontrado' });
+            }
+
+            await producto.update(req.body, { transaction });
+            await transaction.commit();
+
+            res.json({ success: true, data: producto, message: 'Producto actualizado parcialmente' });
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error en patchProducto:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
+     * Actualizar stock de un producto por talla
+     */
+    actualizarStock: async (req, res) => {
+        const transaction = await sequelize.transaction();
+        try {
+            const { id } = req.params;
+            const { tallaId, cantidad } = req.body;
+
+            const talla = await Talla.findOne({
+                where: { IdTalla: tallaId, IdProducto: id }
+            });
+
+            if (!talla) {
+                await transaction.rollback();
+                return res.status(404).json({ success: false, message: 'Talla no encontrada' });
+            }
+
+            talla.Cantidad = cantidad;
+            await talla.save({ transaction });
+            await transaction.commit();
+
+            res.json({ success: true, message: 'Stock actualizado' });
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error en actualizarStock:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
+     * Activar/desactivar producto
+     */
+    toggleProductoStatus: async (req, res) => {
+        const transaction = await sequelize.transaction();
+        try {
+            const { id } = req.params;
+            const producto = await Producto.findByPk(id);
+            if (!producto) {
+                await transaction.rollback();
+                return res.status(404).json({ success: false, message: 'Producto no encontrado' });
+            }
+
+            producto.Estado = !producto.Estado;
+            await producto.save({ transaction });
+            await transaction.commit();
+
+            res.json({
+                success: true,
+                data: { Estado: producto.Estado },
+                message: `Producto ${producto.Estado ? 'activado' : 'desactivado'}`
+            });
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error en toggleProductoStatus:', error);
             res.status(500).json({ success: false, message: error.message });
         }
     },
@@ -230,6 +432,7 @@ const productoController = {
 
         } catch (error) {
             await transaction.rollback();
+            console.error('❌ Error en toggleOferta:', error);
             res.status(500).json({ success: false, message: error.message });
         }
     },
@@ -259,12 +462,136 @@ const productoController = {
                 });
             }
 
+            // Verificar si tiene imágenes asociadas
+            const imagenes = await Imagen.count({ where: { IdProducto: id } });
+            if (imagenes > 0) {
+                await transaction.rollback();
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'No se puede eliminar el producto porque tiene imágenes asociadas' 
+                });
+            }
+
             await producto.destroy({ transaction });
             await transaction.commit();
 
             res.json({ success: true, message: 'Producto eliminado exitosamente' });
         } catch (error) {
             await transaction.rollback();
+            console.error('❌ Error en deleteProducto:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
+     * Obtener productos públicos (catálogo)
+     */
+    getProductosPublicos: async (req, res) => {
+        try {
+            const productos = await Producto.findAll({
+                where: { Estado: true },
+                include: [
+                    { model: Categoria, as: 'Categoria', attributes: ['Nombre'] },
+                    { model: Talla, as: 'Tallas', attributes: ['IdTalla', 'Nombre', 'Cantidad'] },
+                    { model: Imagen, as: 'Imagenes', attributes: ['Url', 'EsPrincipal'] }
+                ],
+                limit: 50
+            });
+
+            const productosFormateados = productos.map(p => {
+                const imagenPrincipal = p.Imagenes?.find(img => img.EsPrincipal)?.Url || 
+                                        p.Imagenes?.[0]?.Url || null;
+                return {
+                    IdProducto: p.IdProducto,
+                    Nombre: p.Nombre,
+                    Descripcion: p.Descripcion,
+                    PrecioVenta: p.PrecioVenta,
+                    EnOferta: p.EnOferta,
+                    PrecioOferta: p.PrecioOferta,
+                    PorcentajeDescuento: p.PorcentajeDescuento,
+                    Categoria: p.Categoria?.Nombre,
+                    Tallas: p.Tallas,
+                    imagenPrincipal
+                };
+            });
+
+            res.json({ success: true, data: productosFormateados });
+        } catch (error) {
+            console.error('❌ Error en getProductosPublicos:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
+     * Obtener productos destacados (en oferta)
+     */
+    getProductosDestacados: async (req, res) => {
+        try {
+            const productos = await Producto.findAll({
+                where: { Estado: true, EnOferta: true },
+                include: [
+                    { model: Categoria, as: 'Categoria' },
+                    { model: Imagen, as: 'Imagenes' }
+                ],
+                limit: 10
+            });
+
+            const productosFormateados = productos.map(p => {
+                const imagenPrincipal = p.Imagenes?.find(img => img.EsPrincipal)?.Url || 
+                                        p.Imagenes?.[0]?.Url || null;
+                return {
+                    IdProducto: p.IdProducto,
+                    Nombre: p.Nombre,
+                    PrecioVenta: p.PrecioVenta,
+                    PrecioOferta: p.PrecioOferta,
+                    PorcentajeDescuento: p.PorcentajeDescuento,
+                    Categoria: p.Categoria?.Nombre,
+                    imagenPrincipal
+                };
+            });
+
+            res.json({ success: true, data: productosFormateados });
+        } catch (error) {
+            console.error('❌ Error en getProductosDestacados:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
+     * Obtener productos por categoría (público)
+     */
+    getProductosByCategoriaPublico: async (req, res) => {
+        try {
+            const { categoriaId } = req.params;
+            const productos = await Producto.findAll({
+                where: { IdCategoria: categoriaId, Estado: true },
+                include: [
+                    { model: Categoria, as: 'Categoria' },
+                    { model: Talla, as: 'Tallas' },
+                    { model: Imagen, as: 'Imagenes' }
+                ],
+                limit: 50
+            });
+
+            const productosFormateados = productos.map(p => {
+                const imagenPrincipal = p.Imagenes?.find(img => img.EsPrincipal)?.Url || 
+                                        p.Imagenes?.[0]?.Url || null;
+                return {
+                    IdProducto: p.IdProducto,
+                    Nombre: p.Nombre,
+                    Descripcion: p.Descripcion,
+                    PrecioVenta: p.PrecioVenta,
+                    EnOferta: p.EnOferta,
+                    PrecioOferta: p.PrecioOferta,
+                    Categoria: p.Categoria?.Nombre,
+                    Tallas: p.Tallas,
+                    imagenPrincipal
+                };
+            });
+
+            res.json({ success: true, data: productosFormateados });
+        } catch (error) {
+            console.error('❌ Error en getProductosByCategoriaPublico:', error);
             res.status(500).json({ success: false, message: error.message });
         }
     }

@@ -11,11 +11,10 @@ import { generateToken } from '../utils/jwt.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import { validateLogin, validateRegistro } from '../utils/validationUtils.js';
 
-// 🔥 Firebase opcional - importación dinámica
+// 🔥 Firebase opcional
 let firebaseAuth = null;
 let sendPasswordResetEmail = null;
 
-// Intentar cargar Firebase solo si las variables existen
 if (process.env.FIREBASE_API_KEY && process.env.FIREBASE_AUTH_DOMAIN) {
     try {
         const { initializeApp } = await import('firebase/app');
@@ -34,31 +33,19 @@ if (process.env.FIREBASE_API_KEY && process.env.FIREBASE_AUTH_DOMAIN) {
     }
 }
 
-/**
- * Controlador de Autenticación
- * Maneja login, registro y verificación de usuarios
- */
 const authController = {
     /**
-     * 🟢 NUEVO: Registro de usuario (público - para clientes)
+     * Registro de usuario (público - para clientes)
      * @route POST /api/auth/registro
      */
     registro: async (req, res) => {
         try {
-            const { 
-                nombre, 
-                correo, 
-                clave, 
-                esCliente = true,
-                datosCliente 
-            } = req.body;
+            const { nombre, correo, clave, esCliente = true, datosCliente } = req.body;
 
-            // Validar datos básicos
             if (!nombre || !correo || !clave) {
                 return errorResponse(res, 'Nombre, correo y clave son requeridos', 400);
             }
 
-            // Verificar si el usuario ya existe
             const existe = await Usuario.findOne({
                 where: { Correo: correo.toLowerCase().trim() }
             });
@@ -67,26 +54,21 @@ const authController = {
                 return errorResponse(res, 'El correo ya está registrado', 400);
             }
 
-            // Buscar rol por defecto para clientes (si existe)
             let IdRol = null;
             if (esCliente) {
-                const rolCliente = await Rol.findOne({ 
-                    where: { Nombre: 'Usuario' } 
-                });
+                const rolCliente = await Rol.findOne({ where: { Nombre: 'Usuario' } });
                 IdRol = rolCliente?.IdRol || null;
             }
 
-            // Crear usuario con estado 'pendiente'
             const nuevoUsuario = await Usuario.create({
                 Nombre: nombre.trim(),
                 Correo: correo.toLowerCase().trim(),
                 Clave: clave,
                 IdRol: IdRol,
                 Tipo: esCliente ? 'cliente' : 'empleado',
-                Estado: 'pendiente' // Requiere aprobación del admin
+                Estado: 'pendiente'
             });
 
-            // Si es cliente y hay datos adicionales, crear registro en Clientes
             if (esCliente && datosCliente) {
                 await Cliente.create({
                     ...datosCliente,
@@ -115,7 +97,7 @@ const authController = {
     },
 
     /**
-     * 🟢 MODIFICADO: Iniciar sesión con redirección según estado y tipo
+     * Iniciar sesión
      * @route POST /api/auth/login
      */
     login: async (req, res) => {
@@ -129,26 +111,22 @@ const authController = {
 
             const usuario = await Usuario.findOne({
                 where: { Correo: correo.toLowerCase().trim() },
-                include: [
-                    { 
-                        model: Rol, 
-                        as: 'Rol',
-                        attributes: ['IdRol', 'Nombre', 'Permisos']
-                    }
-                ]
+                include: [{ 
+                    model: Rol, 
+                    as: 'Rol',
+                    attributes: ['IdRol', 'Nombre', 'Permisos']
+                }]
             });
 
             if (!usuario) {
                 return errorResponse(res, 'Credenciales incorrectas', 401);
             }
 
-            // Validar contraseña
             const claveValida = await usuario.validarClave(clave);
             if (!claveValida) {
                 return errorResponse(res, 'Credenciales incorrectas', 401);
             }
 
-            // Verificar estado y determinar redirección
             let redirectTo = '/dashboard';
             let mensaje = 'Login exitoso';
 
@@ -160,7 +138,6 @@ const authController = {
                 case 'inactivo':
                     return errorResponse(res, 'Usuario inactivo. Contacte al administrador', 403);
                 case 'activo':
-                    // Redirigir según tipo cuando está activo
                     if (usuario.Tipo === 'cliente') {
                         redirectTo = '/cliente/dashboard';
                     } else if (usuario.Tipo === 'admin' || usuario.Rol?.Nombre === 'Administrador') {
@@ -169,7 +146,6 @@ const authController = {
                     break;
             }
 
-            // Obtener permisos del rol
             let permisosArray = [];
             if (usuario.IdRol) {
                 const detalles = await DetallePermiso.findAll({
@@ -186,7 +162,6 @@ const authController = {
                     .filter(Boolean);
             }
 
-            // Generar token con información completa
             const token = generateToken({
                 id: usuario.IdUsuario,
                 correo: usuario.Correo,
@@ -219,17 +194,15 @@ const authController = {
     },
 
     /**
-     * 🟢 NUEVO: Verificar token y estado
+     * Verificar token
      * @route GET /api/auth/verify
      */
     verify: async (req, res) => {
         try {
-            // req.usuario viene del middleware verifyToken
             if (!req.usuario) {
                 return errorResponse(res, 'Token no válido', 401);
             }
 
-            // Verificar si el usuario sigue activo en BD
             const usuario = await Usuario.findByPk(req.usuario.id, {
                 include: [{
                     model: Rol,
@@ -247,7 +220,6 @@ const authController = {
                 return errorResponse(res, 'Usuario inactivo', 403);
             }
 
-            // Determinar redirección según estado
             let redirectTo = null;
             if (usuario.Estado === 'pendiente') {
                 redirectTo = '/pendiente-aprobacion';
@@ -265,14 +237,12 @@ const authController = {
     },
 
     /**
-     * 🟢 MODIFICADO: Registrar nuevo usuario (solo admin) - ahora con estado activo directo
-     * @route POST /api/auth/register (admin)
+     * Registrar usuario (admin)
+     * @route POST /api/auth/register
      */
     register: async (req, res) => {
         try {
             const { nombre, correo, clave, idRol, tipo = 'empleado' } = req.body;
-
-            // Verificar permisos (el middleware ya debería haberlo hecho)
             
             const existe = await Usuario.findOne({
                 where: { Correo: correo.toLowerCase().trim() }
@@ -282,14 +252,13 @@ const authController = {
                 return errorResponse(res, 'El correo ya está registrado', 400);
             }
 
-            // Los usuarios creados por admin ya están activos directamente
             const nuevoUsuario = await Usuario.create({
                 Nombre: nombre.trim(),
                 Correo: correo.toLowerCase().trim(),
                 Clave: clave,
                 IdRol: idRol,
                 Tipo: tipo,
-                Estado: 'activo' // Admin crea usuarios activos
+                Estado: 'activo'
             });
 
             return successResponse(res, {
@@ -340,7 +309,7 @@ const authController = {
     },
 
     /**
-     * Recuperar contraseña con Firebase
+     * Recuperar contraseña
      * @route POST /api/auth/forgot-password
      */
     forgotPassword: async (req, res) => {

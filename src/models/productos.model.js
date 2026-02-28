@@ -168,4 +168,43 @@ Producto.prototype.stockBajo = function(limite = 10) {
     return this.Stock <= limite;
 };
 
+// ✅ ASOCIACIONES AGREGADAS
+Producto.associate = (models) => {
+    // Un producto pertenece a una categoría
+    Producto.belongsTo(models.Categoria, {
+        foreignKey: 'IdCategoria',
+        as: 'Categoria'
+    });
+
+    // Un producto tiene muchas tallas
+    Producto.hasMany(models.Talla, {
+        foreignKey: 'IdProducto',
+        as: 'Tallas'
+    });
+
+    // Un producto tiene muchas imágenes
+    Producto.hasMany(models.Imagen, {
+        foreignKey: 'IdProducto',
+        as: 'Imagenes'
+    });
+
+    // Un producto aparece en muchos detalles de compra
+    Producto.hasMany(models.DetalleCompra, {
+        foreignKey: 'IdProducto',
+        as: 'DetallesCompra'
+    });
+
+    // Un producto aparece en muchos detalles de venta
+    Producto.hasMany(models.DetalleVenta, {
+        foreignKey: 'IdProducto',
+        as: 'DetallesVenta'
+    });
+
+    // Un producto puede tener muchas devoluciones
+    Producto.hasMany(models.Devolucion, {
+        foreignKey: 'IdProducto',
+        as: 'Devoluciones'
+    });
+};
+
 export default Producto;
