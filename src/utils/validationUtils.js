@@ -375,7 +375,7 @@ export const sanitizeProveedor = (data) => {
 // ============================================
 
 /**
- * Validar datos de cliente
+ * 🟢 MODIFICADO: Validar datos de cliente con nuevo campo IdUsuario
  * @param {Object} data - Datos del cliente a validar
  * @param {number|null} id - ID del cliente (para actualización)
  * @returns {Promise<Array>} - Array de errores de validación
@@ -416,12 +416,36 @@ export const validateCliente = async (data, id = null) => {
     if (data.Documento !== undefined && !data.Documento) {
         errors.push('El documento es requerido');
     }
+
+    // 🟢 NUEVO: Validar IdUsuario si se proporciona
+    if (data.IdUsuario !== undefined) {
+        try {
+            const usuario = await Usuario.findByPk(data.IdUsuario);
+            if (!usuario) {
+                errors.push('El usuario asociado no existe');
+            } else {
+                // Verificar que el usuario no esté ya asociado a otro cliente
+                const clienteConUsuario = await Cliente.findOne({
+                    where: {
+                        IdUsuario: data.IdUsuario,
+                        ...(id ? { IdCliente: { [Op.ne]: id } } : {})
+                    }
+                });
+                if (clienteConUsuario) {
+                    errors.push('Este usuario ya está asociado a otro cliente');
+                }
+            }
+        } catch (error) {
+            console.error('Error al verificar usuario:', error);
+            errors.push('Error al verificar el usuario asociado');
+        }
+    }
     
     return errors;
 };
 
 /**
- * Sanitizar datos de cliente
+ * 🟢 MODIFICADO: Sanitizar datos de cliente con IdUsuario
  * @param {Object} data - Datos a sanitizar
  * @returns {Object} - Datos sanitizados
  */
@@ -435,6 +459,8 @@ export const sanitizeCliente = (data) => {
     if (data.Direccion) sanitized.Direccion = data.Direccion.trim();
     if (data.Ciudad) sanitized.Ciudad = data.Ciudad.trim();
     if (data.Departamento) sanitized.Departamento = data.Departamento.trim();
+    if (data.TipoDocumento) sanitized.TipoDocumento = data.TipoDocumento;
+    if (data.IdUsuario) sanitized.IdUsuario = data.IdUsuario;
     
     return sanitized;
 };
@@ -444,7 +470,7 @@ export const sanitizeCliente = (data) => {
 // ============================================
 
 /**
- * Validar datos de usuario
+ * 🟢 MODIFICADO: Validar datos de usuario con nuevos campos Tipo y Estado ENUM
  * @param {Object} data - Datos del usuario a validar
  * @param {number|null} id - ID del usuario (para actualización)
  * @returns {Promise<Array>} - Array de errores de validación
@@ -452,10 +478,18 @@ export const sanitizeCliente = (data) => {
 export const validateUsuario = async (data, id = null) => {
     const errors = [];
 
-    if (data.Nombre !== undefined && (!data.Nombre || data.Nombre.length < 3)) {
-        errors.push('El nombre debe tener al menos 3 caracteres');
+    // Validar Nombre
+    if (data.Nombre !== undefined) {
+        if (!data.Nombre || data.Nombre.trim() === '') {
+            errors.push('El nombre es requerido');
+        } else if (data.Nombre.length < 3) {
+            errors.push('El nombre debe tener al menos 3 caracteres');
+        } else if (data.Nombre.length > 100) {
+            errors.push('El nombre no puede exceder los 100 caracteres');
+        }
     }
 
+    // Validar Correo
     if (data.Correo !== undefined) {
         if (!data.Correo) {
             errors.push('El correo es requerido');
@@ -486,15 +520,39 @@ export const validateUsuario = async (data, id = null) => {
         }
     }
 
-    if (data.Clave !== undefined && (!data.Clave || data.Clave.length < 6)) {
-        errors.push('La contraseña debe tener al menos 6 caracteres');
+    // Validar Clave (solo para creación o cambio explícito)
+    if (data.Clave !== undefined) {
+        if (!data.Clave || data.Clave.trim() === '') {
+            errors.push('La contraseña es requerida');
+        } else if (data.Clave.length < 6) {
+            errors.push('La contraseña debe tener al menos 6 caracteres');
+        }
     }
 
-    if (data.IdRol !== undefined) {
+    // 🟢 NUEVO: Validar Tipo
+    if (data.Tipo !== undefined) {
+        const tiposValidos = ['admin', 'cliente', 'empleado'];
+        if (!tiposValidos.includes(data.Tipo)) {
+            errors.push('Tipo de usuario no válido. Debe ser: admin, cliente o empleado');
+        }
+    }
+
+    // 🟢 NUEVO: Validar Estado (ENUM)
+    if (data.Estado !== undefined) {
+        const estadosValidos = ['pendiente', 'activo', 'inactivo'];
+        if (!estadosValidos.includes(data.Estado)) {
+            errors.push('Estado no válido. Debe ser: pendiente, activo o inactivo');
+        }
+    }
+
+    // Validar IdRol
+    if (data.IdRol !== undefined && data.IdRol) {
         try {
             const rol = await Rol.findByPk(data.IdRol);
             if (!rol) {
                 errors.push('El rol seleccionado no existe');
+            } else if (!rol.Estado) {
+                errors.push('El rol seleccionado está inactivo');
             }
         } catch (error) {
             console.error('Error al verificar rol:', error);
@@ -506,17 +564,19 @@ export const validateUsuario = async (data, id = null) => {
 };
 
 /**
- * Sanitizar datos de usuario
+ * 🟢 MODIFICADO: Sanitizar datos de usuario con nuevos campos
  * @param {Object} data - Datos a sanitizar
  * @returns {Object} - Datos sanitizados
  */
 export const sanitizeUsuario = (data) => {
     const sanitized = {};
     
-    if (data.Nombre) sanitized.Nombre = data.Nombre.trim();
+    if (data.Nombre) sanitized.Nombre = data.Nombre.trim().replace(/\s+/g, ' ');
     if (data.Correo) sanitized.Correo = data.Correo.toLowerCase().trim();
     if (data.IdRol) sanitized.IdRol = data.IdRol;
-    if (data.Estado !== undefined) sanitized.Estado = data.Estado;
+    if (data.Tipo) sanitized.Tipo = data.Tipo;
+    if (data.Estado) sanitized.Estado = data.Estado;
+    if (data.Clave) sanitized.Clave = data.Clave; // La encriptación se hace en el hook del modelo
     
     return sanitized;
 };
@@ -566,7 +626,7 @@ export const validateCambioClave = (data) => {
 // ============================================
 
 /**
- * Validar datos de rol
+ * 🟢 MODIFICADO: Validar datos de rol con nuevos campos
  * @param {Object} data - Datos del rol a validar
  * @param {number|null} id - ID del rol (para actualización)
  * @returns {Promise<Array>} - Array de errores de validación
@@ -574,11 +634,64 @@ export const validateCambioClave = (data) => {
 export const validateRol = async (data, id = null) => {
     const errors = [];
 
-    if (data.Nombre !== undefined && (!data.Nombre || data.Nombre.trim() === '')) {
-        errors.push('El nombre del rol es requerido');
+    if (data.Nombre !== undefined) {
+        if (!data.Nombre || data.Nombre.trim() === '') {
+            errors.push('El nombre del rol es requerido');
+        } else if (data.Nombre.length < 3) {
+            errors.push('El nombre debe tener al menos 3 caracteres');
+        } else if (data.Nombre.length > 50) {
+            errors.push('El nombre no puede exceder los 50 caracteres');
+        } else {
+            // Verificar nombre duplicado
+            try {
+                const whereClause = {
+                    Nombre: { [Op.like]: data.Nombre.trim() }
+                };
+                if (id) {
+                    whereClause.IdRol = { [Op.ne]: id };
+                }
+                const existingRol = await Rol.findOne({ where: whereClause });
+                if (existingRol) {
+                    errors.push('Ya existe un rol con ese nombre');
+                }
+            } catch (error) {
+                console.error('Error al verificar rol duplicado:', error);
+                errors.push('Error al verificar disponibilidad del nombre');
+            }
+        }
+    }
+
+    // 🟢 NUEVO: Validar Descripcion
+    if (data.Descripcion !== undefined && data.Descripcion && data.Descripcion.length > 500) {
+        errors.push('La descripción no puede exceder los 500 caracteres');
+    }
+
+    // 🟢 NUEVO: Validar Permisos (debe ser array)
+    if (data.Permisos !== undefined && !Array.isArray(data.Permisos)) {
+        errors.push('Los permisos deben ser un array');
+    }
+
+    if (data.Estado !== undefined && typeof data.Estado !== 'boolean') {
+        errors.push('El estado debe ser un valor booleano');
     }
 
     return errors;
+};
+
+/**
+ * 🟢 NUEVO: Sanitizar datos de rol
+ * @param {Object} data - Datos a sanitizar
+ * @returns {Object} - Datos sanitizados
+ */
+export const sanitizeRol = (data) => {
+    const sanitized = {};
+    
+    if (data.Nombre) sanitized.Nombre = data.Nombre.trim().replace(/\s+/g, ' ');
+    if (data.Descripcion) sanitized.Descripcion = data.Descripcion.trim();
+    if (data.Permisos) sanitized.Permisos = data.Permisos;
+    if (data.Estado !== undefined) sanitized.Estado = data.Estado;
+    
+    return sanitized;
 };
 
 // ============================================

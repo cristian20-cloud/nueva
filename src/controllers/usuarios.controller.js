@@ -2,6 +2,8 @@
 import { Op } from 'sequelize';
 import Usuario from '../models/usuarios.model.js';
 import Rol from '../models/roles.model.js';
+import Cliente from '../models/clientes.model.js';
+import DetallePermiso from '../models/detallePermisos.model.js';
 import { validateUsuario, validateCambioClave } from '../utils/validationUtils.js';
 import { sequelize } from '../config/db.js';
 
@@ -17,6 +19,7 @@ const usuarioController = {
                 limit = 7, 
                 search = '', 
                 rol,
+                tipo,
                 estado 
             } = req.query;
 
@@ -36,8 +39,12 @@ const usuarioController = {
                 whereClause.IdRol = rol;
             }
             
-            if (estado !== undefined) {
-                whereClause.Estado = estado === 'true' || estado === 'Activado';
+            if (tipo) {
+                whereClause.Tipo = tipo;
+            }
+            
+            if (estado) {
+                whereClause.Estado = estado;
             }
 
             // Consultar usuarios
@@ -54,15 +61,17 @@ const usuarioController = {
                 order: [['Nombre', 'ASC']]
             });
 
-            // Formatear respuesta
+            // Formatear respuesta con los nuevos campos
             const usuariosFormateados = rows.map(usuario => ({
                 IdUsuario: usuario.IdUsuario,
                 Nombre: usuario.Nombre,
                 Email: usuario.Correo,
+                Tipo: usuario.Tipo,
                 Rol: usuario.Rol?.Nombre || 'Sin rol',
                 IdRol: usuario.IdRol,
-                Estado: usuario.Estado ? 'Activado' : 'Desactivado',
-                EstadoValor: usuario.Estado
+                Estado: usuario.Estado,
+                EstadoTexto: usuario.Estado === 'activo' ? 'Activado' : 
+                             usuario.Estado === 'pendiente' ? 'Pendiente' : 'Desactivado'
             }));
 
             const totalPages = Math.ceil(count / limit);
@@ -87,6 +96,99 @@ const usuarioController = {
     },
 
     /**
+     * 🟢 NUEVO: Obtener usuarios pendientes de aprobación
+     * @route GET /api/usuarios/pendientes
+     */
+    getUsuariosPendientes: async (req, res) => {
+        try {
+            const usuarios = await Usuario.findAll({
+                where: { Estado: 'pendiente' },
+                include: [{
+                    model: Rol,
+                    as: 'Rol',
+                    attributes: ['IdRol', 'Nombre']
+                }],
+                attributes: { exclude: ['Clave'] },
+                order: [['createdAt', 'DESC']]
+            });
+
+            const formateados = usuarios.map(u => ({
+                IdUsuario: u.IdUsuario,
+                Nombre: u.Nombre,
+                Correo: u.Correo,
+                Tipo: u.Tipo,
+                FechaRegistro: u.createdAt
+            }));
+
+            res.json({
+                success: true,
+                data: formateados
+            });
+
+        } catch (error) {
+            console.error('❌ Error en getUsuariosPendientes:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
+     * 🟢 NUEVO: Aprobar usuario (cambiar estado a activo y asignar rol)
+     * @route PUT /api/usuarios/:id/aprobar
+     */
+    aprobarUsuario: async (req, res) => {
+        const transaction = await sequelize.transaction();
+        
+        try {
+            const { id } = req.params;
+            const { IdRol } = req.body;
+
+            if (isNaN(id)) {
+                await transaction.rollback();
+                return res.status(400).json({ success: false, message: 'ID inválido' });
+            }
+
+            const usuario = await Usuario.findByPk(id);
+            if (!usuario) {
+                await transaction.rollback();
+                return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+            }
+
+            if (usuario.Estado !== 'pendiente') {
+                await transaction.rollback();
+                return res.status(400).json({ success: false, message: 'El usuario no está pendiente' });
+            }
+
+            // Asignar rol y cambiar estado
+            const updateData = {
+                Estado: 'activo'
+            };
+            
+            if (IdRol) {
+                updateData.IdRol = IdRol;
+            }
+
+            await usuario.update(updateData, { transaction });
+            await transaction.commit();
+
+            res.json({
+                success: true,
+                message: 'Usuario aprobado exitosamente',
+                data: {
+                    IdUsuario: usuario.IdUsuario,
+                    Nombre: usuario.Nombre,
+                    Estado: usuario.Estado,
+                    IdRol: usuario.IdRol
+                }
+            });
+
+        } catch (error) {
+            await transaction.rollback();
+            console.error('❌ Error en aprobarUsuario:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
      * Obtener un usuario por ID
      * @route GET /api/usuarios/:id
      */
@@ -99,11 +201,18 @@ const usuarioController = {
             }
 
             const usuario = await Usuario.findByPk(id, {
-                include: [{
-                    model: Rol,
-                    as: 'Rol',
-                    attributes: ['IdRol', 'Nombre']
-                }],
+                include: [
+                    {
+                        model: Rol,
+                        as: 'Rol',
+                        attributes: ['IdRol', 'Nombre']
+                    },
+                    {
+                        model: Cliente,
+                        as: 'Cliente',
+                        attributes: ['IdCliente', 'Documento', 'Telefono']
+                    }
+                ],
                 attributes: { exclude: ['Clave'] }
             });
 
@@ -117,10 +226,13 @@ const usuarioController = {
                     IdUsuario: usuario.IdUsuario,
                     Nombre: usuario.Nombre,
                     Correo: usuario.Correo,
+                    Tipo: usuario.Tipo,
                     Rol: usuario.Rol?.Nombre,
                     IdRol: usuario.IdRol,
                     Estado: usuario.Estado,
-                    EstadoTexto: usuario.Estado ? 'Activado' : 'Desactivado'
+                    EstadoTexto: usuario.Estado === 'activo' ? 'Activado' : 
+                                 usuario.Estado === 'pendiente' ? 'Pendiente' : 'Desactivado',
+                    Cliente: usuario.Cliente
                 }
             });
 
@@ -131,14 +243,14 @@ const usuarioController = {
     },
 
     /**
-     * Crear un nuevo usuario
+     * 🟢 MODIFICADO: Crear un nuevo usuario (admin) con Tipo
      * @route POST /api/usuarios
      */
     createUsuario: async (req, res) => {
         const transaction = await sequelize.transaction();
         
         try {
-            const { Nombre, Correo, Clave, IdRol } = req.body;
+            const { Nombre, Correo, Clave, IdRol, Tipo = 'empleado' } = req.body;
 
             // Validar datos
             const validationErrors = await validateUsuario(req.body);
@@ -147,20 +259,23 @@ const usuarioController = {
                 return res.status(400).json({ success: false, errors: validationErrors });
             }
 
-            // Verificar rol
-            const rol = await Rol.findByPk(IdRol);
-            if (!rol || !rol.Estado) {
-                await transaction.rollback();
-                return res.status(400).json({ success: false, message: 'Rol no válido' });
+            // Verificar rol si se proporciona
+            if (IdRol) {
+                const rol = await Rol.findByPk(IdRol);
+                if (!rol || !rol.Estado) {
+                    await transaction.rollback();
+                    return res.status(400).json({ success: false, message: 'Rol no válido' });
+                }
             }
 
-            // Crear usuario
+            // Crear usuario (admin crea usuarios activos)
             const nuevoUsuario = await Usuario.create({
                 Nombre: Nombre.trim(),
                 Correo: Correo.toLowerCase().trim(),
                 Clave,
                 IdRol,
-                Estado: true
+                Tipo,
+                Estado: 'activo' // Admin crea usuarios activos
             }, { transaction });
 
             await transaction.commit();
@@ -171,7 +286,9 @@ const usuarioController = {
                     IdUsuario: nuevoUsuario.IdUsuario,
                     Nombre: nuevoUsuario.Nombre,
                     Correo: nuevoUsuario.Correo,
-                    IdRol: nuevoUsuario.IdRol
+                    Tipo: nuevoUsuario.Tipo,
+                    IdRol: nuevoUsuario.IdRol,
+                    Estado: nuevoUsuario.Estado
                 },
                 message: 'Usuario creado exitosamente'
             });
@@ -197,7 +314,7 @@ const usuarioController = {
         
         try {
             const { id } = req.params;
-            const { Nombre, Correo, IdRol, Estado } = req.body;
+            const { Nombre, Correo, IdRol, Estado, Tipo } = req.body;
 
             if (isNaN(id)) {
                 await transaction.rollback();
@@ -211,7 +328,7 @@ const usuarioController = {
             }
 
             // Validar datos
-            const validationErrors = await validateUsuario({ Nombre, Correo, IdRol, Estado }, id);
+            const validationErrors = await validateUsuario({ Nombre, Correo, IdRol, Estado, Tipo }, id);
             if (validationErrors.length > 0) {
                 await transaction.rollback();
                 return res.status(400).json({ success: false, errors: validationErrors });
@@ -221,7 +338,8 @@ const usuarioController = {
             if (Nombre) updateData.Nombre = Nombre.trim();
             if (Correo) updateData.Correo = Correo.toLowerCase().trim();
             if (IdRol) updateData.IdRol = IdRol;
-            if (Estado !== undefined) updateData.Estado = Estado;
+            if (Tipo) updateData.Tipo = Tipo;
+            if (Estado) updateData.Estado = Estado;
 
             await usuario.update(updateData, { transaction });
             await transaction.commit();
@@ -232,6 +350,7 @@ const usuarioController = {
                     IdUsuario: usuario.IdUsuario,
                     Nombre: usuario.Nombre,
                     Correo: usuario.Correo,
+                    Tipo: usuario.Tipo,
                     IdRol: usuario.IdRol,
                     Estado: usuario.Estado
                 },
@@ -277,7 +396,7 @@ const usuarioController = {
                 return res.status(400).json({ success: false, message: 'No puede eliminarse a sí mismo' });
             }
 
-            await usuario.update({ Estado: false }, { transaction });
+            await usuario.update({ Estado: 'inactivo' }, { transaction });
             await transaction.commit();
 
             res.json({ success: true, message: 'Usuario desactivado exitosamente' });
@@ -311,12 +430,13 @@ const usuarioController = {
             }
 
             // No permitir desactivar al propio usuario
-            if (usuario.IdUsuario === req.usuario.IdUsuario && usuario.Estado) {
+            if (usuario.IdUsuario === req.usuario.IdUsuario && usuario.Estado === 'activo') {
                 await transaction.rollback();
                 return res.status(400).json({ success: false, message: 'No puede desactivarse a sí mismo' });
             }
 
-            await usuario.update({ Estado: !usuario.Estado }, { transaction });
+            const nuevoEstado = usuario.Estado === 'activo' ? 'inactivo' : 'activo';
+            await usuario.update({ Estado: nuevoEstado }, { transaction });
             await transaction.commit();
 
             res.json({
@@ -324,9 +444,9 @@ const usuarioController = {
                 data: {
                     IdUsuario: usuario.IdUsuario,
                     Estado: usuario.Estado,
-                    EstadoTexto: usuario.Estado ? 'Activado' : 'Desactivado'
+                    EstadoTexto: usuario.Estado === 'activo' ? 'Activado' : 'Desactivado'
                 },
-                message: `Usuario ${usuario.Estado ? 'activado' : 'desactivado'} exitosamente`
+                message: `Usuario ${usuario.Estado === 'activo' ? 'activado' : 'desactivado'} exitosamente`
             });
 
         } catch (error) {
@@ -353,7 +473,7 @@ const usuarioController = {
             }
 
             // Verificar permisos
-            if (req.usuario.IdUsuario !== parseInt(id) && req.usuario.Rol?.Nombre !== 'Administrador') {
+            if (req.usuario.IdUsuario !== parseInt(id) && req.usuario.Tipo !== 'admin') {
                 await transaction.rollback();
                 return res.status(403).json({ success: false, message: 'No tiene permisos' });
             }
@@ -401,8 +521,8 @@ const usuarioController = {
     getUsuariosActivos: async (req, res) => {
         try {
             const usuarios = await Usuario.findAll({
-                where: { Estado: true },
-                attributes: ['IdUsuario', 'Nombre', 'Correo'],
+                where: { Estado: 'activo' },
+                attributes: ['IdUsuario', 'Nombre', 'Correo', 'Tipo'],
                 include: [{
                     model: Rol,
                     as: 'Rol',
@@ -415,6 +535,7 @@ const usuarioController = {
                 IdUsuario: u.IdUsuario,
                 Nombre: u.Nombre,
                 Correo: u.Correo,
+                Tipo: u.Tipo,
                 Rol: u.Rol?.Nombre
             }));
 
@@ -433,15 +554,37 @@ const usuarioController = {
     getMiPerfil: async (req, res) => {
         try {
             const usuario = await Usuario.findByPk(req.usuario.IdUsuario, {
-                include: [{
-                    model: Rol,
-                    as: 'Rol',
-                    attributes: ['Nombre']
-                }],
+                include: [
+                    {
+                        model: Rol,
+                        as: 'Rol',
+                        attributes: ['Nombre', 'Permisos']
+                    },
+                    {
+                        model: Cliente,
+                        as: 'Cliente',
+                        required: false
+                    }
+                ],
                 attributes: { exclude: ['Clave'] }
             });
 
-            res.json({ success: true, data: usuario });
+            // Obtener permisos detallados
+            const permisos = await DetallePermiso.findAll({
+                where: { IdRol: usuario.IdRol },
+                include: [{
+                    model: Permiso,
+                    as: 'Permiso'
+                }]
+            });
+
+            res.json({ 
+                success: true, 
+                data: {
+                    ...usuario.toJSON(),
+                    permisosDetalle: permisos.map(p => p.Permiso)
+                }
+            });
 
         } catch (error) {
             console.error('❌ Error en getMiPerfil:', error);
@@ -472,6 +615,15 @@ const usuarioController = {
             if (Correo) updateData.Correo = Correo.toLowerCase().trim();
 
             await usuario.update(updateData, { transaction });
+            
+            // Si es cliente, actualizar también en tabla Clientes
+            if (usuario.Tipo === 'cliente') {
+                await Cliente.update(
+                    { Nombre: Nombre, Correo: Correo },
+                    { where: { IdUsuario: usuario.IdUsuario }, transaction }
+                );
+            }
+            
             await transaction.commit();
 
             res.json({ success: true, message: 'Perfil actualizado exitosamente' });
@@ -490,8 +642,9 @@ const usuarioController = {
     getEstadisticas: async (req, res) => {
         try {
             const totalUsuarios = await Usuario.count();
-            const activos = await Usuario.count({ where: { Estado: true } });
-            const inactivos = await Usuario.count({ where: { Estado: false } });
+            const activos = await Usuario.count({ where: { Estado: 'activo' } });
+            const pendientes = await Usuario.count({ where: { Estado: 'pendiente' } });
+            const inactivos = await Usuario.count({ where: { Estado: 'inactivo' } });
             
             // Usuarios por rol
             const usuariosPorRol = await Usuario.findAll({
@@ -507,14 +660,28 @@ const usuarioController = {
                 group: ['IdRol']
             });
 
+            // Usuarios por tipo
+            const usuariosPorTipo = await Usuario.findAll({
+                attributes: [
+                    'Tipo',
+                    [sequelize.fn('COUNT', sequelize.col('Usuario.IdUsuario')), 'cantidad']
+                ],
+                group: ['Tipo']
+            });
+
             res.json({
                 success: true,
                 data: {
                     total: totalUsuarios,
                     activos,
+                    pendientes,
                     inactivos,
                     usuariosPorRol: usuariosPorRol.map(item => ({
                         rol: item.Rol?.Nombre,
+                        cantidad: parseInt(item.dataValues.cantidad)
+                    })),
+                    usuariosPorTipo: usuariosPorTipo.map(item => ({
+                        tipo: item.Tipo,
                         cantidad: parseInt(item.dataValues.cantidad)
                     }))
                 }

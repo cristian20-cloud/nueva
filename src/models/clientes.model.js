@@ -107,6 +107,18 @@ const Cliente = sequelize.define('Cliente', {
         allowNull: true,
         field: 'Direccion',
         comment: 'Dirección de residencia'
+    },
+    // 🟢 NUEVO: Relación con Usuario
+    IdUsuario: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        unique: true, // Un cliente por usuario
+        field: 'IdUsuario',
+        comment: 'ID del usuario asociado',
+        references: {
+            model: 'Usuarios',
+            key: 'IdUsuario'
+        }
     }
 }, {
     tableName: 'Clientes',
@@ -142,6 +154,11 @@ Cliente.prototype.estaActivo = function() {
 
 Cliente.prototype.formatearDocumento = function() {
     return `${this.getTipoDocumentoTexto()} ${this.Documento}`;
+};
+
+// 🟢 NUEVO: Obtener usuario asociado (esto requiere asociación en otro lado)
+Cliente.prototype.tieneUsuario = function() {
+    return this.IdUsuario !== null;
 };
 
 export default Cliente;

@@ -1,6 +1,6 @@
 // models/usuarios.model.js
 import { DataTypes, Op } from 'sequelize';
-import { sequelize } from '../config/db.js';  // ✅ CORREGIDO
+import { sequelize } from '../config/db.js';
 import bcrypt from 'bcryptjs';
 
 /**
@@ -42,15 +42,25 @@ const Usuario = sequelize.define('Usuario', {
             len: { args: [6, 100], msg: 'La contraseña debe tener al menos 6 caracteres' }
         }
     },
-    Estado: {
-        type: DataTypes.BOOLEAN,
+    // 🟢 NUEVO: Tipo de usuario (admin, cliente, empleado)
+    Tipo: {
+        type: DataTypes.ENUM('admin', 'cliente', 'empleado'),
         allowNull: false,
-        defaultValue: true,
-        field: 'Estado'
+        defaultValue: 'cliente',
+        field: 'Tipo',
+        comment: 'Tipo de usuario: admin, cliente o empleado'
+    },
+    // 🟢 MODIFICADO: Estado ahora es ENUM con pendiente/activo/inactivo
+    Estado: {
+        type: DataTypes.ENUM('pendiente', 'activo', 'inactivo'),
+        allowNull: false,
+        defaultValue: 'pendiente',
+        field: 'Estado',
+        comment: 'Estado del usuario: pendiente (requiere aprobación), activo, inactivo'
     },
     IdRol: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true, // 🟢 MODIFICADO: Ahora puede ser null hasta que el admin asigne rol
         field: 'IdRol',
         references: { model: 'Roles', key: 'IdRol' }
     }
@@ -66,6 +76,7 @@ const Usuario = sequelize.define('Usuario', {
             if (usuario.Correo) {
                 usuario.Correo = usuario.Correo.toLowerCase();
             }
+            // Si es cliente y no tiene rol, se le asigna rol por defecto después (en controlador)
         },
         beforeUpdate: async (usuario) => {
             if (usuario.changed('Clave') && usuario.Clave) {
@@ -90,12 +101,28 @@ Usuario.prototype.toJSON = function() {
     return values;
 };
 
+// 🟢 MODIFICADO: Verificar si está activo (ahora es ENUM)
 Usuario.prototype.estaActivo = function() {
-    return this.Estado;
+    return this.Estado === 'activo';
 };
 
+// 🟢 NUEVO: Verificar si está pendiente
+Usuario.prototype.estaPendiente = function() {
+    return this.Estado === 'pendiente';
+};
+
+// 🟢 NUEVO: Obtener tipo de usuario
+Usuario.prototype.esAdmin = function() {
+    return this.Tipo === 'admin';
+};
+
+Usuario.prototype.esCliente = function() {
+    return this.Tipo === 'cliente';
+};
+
+// 🟢 MODIFICADO: Buscar con filtros adaptado a nuevos estados
 Usuario.buscarConFiltros = async function(filtros) {
-    const { search, rol, estado, page = 1, limit = 10 } = filtros;
+    const { search, rol, estado, tipo, page = 1, limit = 10 } = filtros;
     const whereClause = {};
 
     if (search) {
@@ -106,7 +133,8 @@ Usuario.buscarConFiltros = async function(filtros) {
     }
 
     if (rol) whereClause.IdRol = rol;
-    if (estado !== undefined) whereClause.Estado = estado === 'true' || estado === 'Activado';
+    if (tipo) whereClause.Tipo = tipo;
+    if (estado) whereClause.Estado = estado;
 
     return await this.findAndCountAll({
         where: whereClause,
@@ -114,6 +142,14 @@ Usuario.buscarConFiltros = async function(filtros) {
         limit: parseInt(limit),
         offset: (page - 1) * limit,
         order: [['Nombre', 'ASC']]
+    });
+};
+
+// 🟢 NUEVO: Buscar usuarios pendientes
+Usuario.buscarPendientes = async function() {
+    return await this.findAll({
+        where: { Estado: 'pendiente' },
+        include: ['Rol']
     });
 };
 

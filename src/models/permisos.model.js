@@ -67,4 +67,4 @@ const Permiso = sequelize.define('Permiso', {
     timestamps: false
 });
 
-export default Permiso; // 👈 CAMBIO CRUCIAL
+export default Permiso;

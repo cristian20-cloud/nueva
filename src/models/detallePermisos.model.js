@@ -44,4 +44,4 @@ const DetallePermiso = sequelize.define('DetallePermiso', {
     ]
 });
 
-export default DetallePermiso; // 👈 ESTO ES CRUCIAL
+export default DetallePermiso;

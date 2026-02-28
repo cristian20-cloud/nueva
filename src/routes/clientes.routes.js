@@ -2,7 +2,7 @@
 import express from 'express';
 const router = express.Router();
 import clienteController from '../controllers/clientes.controller.js';
-import { verifyToken, checkRole } from '../middlewares/auth.middleware.js';
+import { verifyToken, checkPermission, checkClienteAccess } from '../middlewares/auth.middleware.js';
 
 /**
  * Rutas para el módulo de Clientes
@@ -12,21 +12,44 @@ import { verifyToken, checkRole } from '../middlewares/auth.middleware.js';
 // Todas las rutas requieren autenticación
 router.use(verifyToken);
 
-// Rutas públicas dentro del API (requieren token pero no roles específicos)
-router.get('/activos', clienteController.getClientesActivos);
-router.get('/estadisticas', clienteController.getEstadisticas);
-router.get('/ciudad/:ciudad', clienteController.getClientesByCiudad);
-router.get('/documento/:tipo/:numero', clienteController.getClienteByDocumento);
+// ============================================
+// RUTAS PÚBLICAS DENTRO DEL API (solo token)
+// ============================================
+router.get('/activos', checkPermission('ver_clientes'), clienteController.getClientesActivos);
+router.get('/estadisticas', checkPermission('ver_clientes'), clienteController.getEstadisticas);
+router.get('/ciudad/:ciudad', checkPermission('ver_clientes'), clienteController.getClientesByCiudad);
+router.get('/documento/:tipo/:numero', checkPermission('ver_clientes'), clienteController.getClienteByDocumento);
 
-// CRUD Principal
-router.get('/', clienteController.getAllClientes);
-router.get('/:id', clienteController.getClienteById);
-router.post('/', checkRole(['ADMIN', 'SUPERVISOR', 'VENDEDOR']), clienteController.createCliente);
-router.put('/:id', checkRole(['ADMIN', 'SUPERVISOR']), clienteController.updateCliente);
-router.delete('/:id', checkRole(['ADMIN']), clienteController.deleteCliente);
+// ============================================
+// CRUD PRINCIPAL
+// ============================================
+// GET - Ver clientes (permiso de ver)
+router.get('/', checkPermission('ver_clientes'), clienteController.getAllClientes);
+router.get('/:id', checkPermission('ver_clientes'), clienteController.getClienteById);
 
-// Rutas específicas
-router.patch('/:id/estado', checkRole(['ADMIN', 'SUPERVISOR']), clienteController.toggleClienteStatus);
-router.patch('/:id/saldo', checkRole(['ADMIN', 'SUPERVISOR', 'CAJERO']), clienteController.updateSaldo);
+// POST - Crear cliente (permiso de crear)
+router.post('/', checkPermission('crear_clientes'), clienteController.createCliente);
+
+// PUT - Actualizar cliente (permiso de editar)
+router.put('/:id', checkPermission('editar_clientes'), clienteController.updateCliente);
+
+// DELETE - Eliminar cliente (permiso de eliminar)
+router.delete('/:id', checkPermission('eliminar_clientes'), clienteController.deleteCliente);
+
+// ============================================
+// RUTAS ESPECÍFICAS
+// ============================================
+// Cambiar estado (activar/desactivar)
+router.patch('/:id/estado', checkPermission('activar_clientes'), clienteController.toggleClienteStatus);
+
+// Actualizar saldo (permiso específico para finanzas)
+router.patch('/:id/saldo', checkPermission('editar_clientes_saldo'), clienteController.updateSaldo);
+
+// ============================================
+// RUTAS PARA EL PROPIO CLIENTE (acceso especial)
+// ============================================
+// El cliente puede ver su propio perfil sin permisos especiales
+router.get('/mi/perfil', clienteController.getMiPerfil);
+router.put('/mi/perfil', clienteController.updateMiPerfil);
 
 export default router;
