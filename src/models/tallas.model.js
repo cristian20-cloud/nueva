@@ -45,19 +45,19 @@ const Talla = sequelize.define(
       }
     },
 
-    // ✅ CAMPO AGREGADO: Relación con Producto
+
     IdProducto: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,  
       field: 'IdProducto',
-      comment: 'ID del producto al que pertenece esta talla',
+      comment: 'ID del producto al que pertenece esta talla (puede ser NULL para tallas maestras)',
       references: {
         model: 'Productos',
         key: 'IdProducto'
       }
     },
 
-    // ✅ CAMPO AGREGADO: Estado de la talla
+    // ✅ Estado de la talla
     Estado: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
@@ -70,10 +70,9 @@ const Talla = sequelize.define(
     tableName: 'Tallas',
     timestamps: false,
     freezeTableName: true,
-    // ✅ HOOKS AGREGADOS
     hooks: {
       beforeCreate: (talla) => {
-        console.log(`📏 Creando nueva talla: ${talla.Nombre} para producto ID: ${talla.IdProducto}`);
+        console.log(`📏 Creando nueva talla: ${talla.Nombre} ${talla.IdProducto ? `para producto ID: ${talla.IdProducto}` : '(talla maestra)'}`);
       },
       beforeUpdate: (talla) => {
         console.log(`📏 Actualizando talla ID: ${talla.IdTalla}`);
@@ -82,7 +81,7 @@ const Talla = sequelize.define(
   }
 );
 
-// ✅ MÉTODOS PERSONALIZADOS AGREGADOS
+// ✅ MÉTODOS PERSONALIZADOS
 Talla.prototype.tieneStock = function() {
   return this.Cantidad > 0;
 };
@@ -95,9 +94,13 @@ Talla.prototype.estaActiva = function() {
   return this.Estado;
 };
 
-// ✅ ASOCIACIONES AGREGADAS
+Talla.prototype.esTallaMaestra = function() {
+  return this.IdProducto === null;
+};
+
+// ✅ ASOCIACIONES
 Talla.associate = (models) => {
-  // Una talla pertenece a un producto
+  // Una talla pertenece a un producto (puede ser null)
   Talla.belongsTo(models.Producto, {
     foreignKey: 'IdProducto',
     as: 'Producto'
