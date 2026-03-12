@@ -1,40 +1,34 @@
 // server.js
-import app from './src/app.js';
-import { connectDB } from './src/config/db.js';
-import { sequelize } from './src/models/index.js'; // ✅ CORREGIDO: con src/
-import dotenv from 'dotenv';
+import express from 'express';
+import cors from 'cors';
+import { connectDB } from './config/db.js';
 
-// ✅ IMPORTAR EL ARCHIVO INDEX (con la ruta correcta)
-import './src/models/index.js';
+// Importar rutas
+import authRoutes from './routes/auth.routes.js';
+import usuarioRoutes from './routes/usuarios.routes.js';
 
-dotenv.config();
+const app = express();
 
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Rutas
+app.use('/api/auth', authRoutes);
+app.use('/api/usuarios', usuarioRoutes);
+
+// 🟢 Conectar BD y cargar modelos ANTES de escuchar
 const PORT = process.env.PORT || 3000;
 
 const startServer = async () => {
-    
-    console.log('   🚀 STREETCAPS API');
-    
     try {
-        // 1. Conectar a la base de datos
-        await connectDB();
-        console.log(`   📡 Servidor: http://localhost:${PORT}`);
+        await connectDB();  // ✅ Esto ahora carga modelos + asociaciones
         
-        // 2. ⚠️ Comentar sync por ahora
-        // await sequelize.sync({ alter: true, force: false });
-        
-        console.log(`   🗄️  Base de datos: ✅ Conectada`);
-        console.log(`   ⚡ Estado:    ✅ Corriendo`);
-        console.log(`   📁 Entorno:   ${process.env.NODE_ENV || 'development'}`);
-        
-        // 3. Iniciar servidor
         app.listen(PORT, () => {
-            console.log(`   🚀 Servidor escuchando en puerto ${PORT}`);
+            console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
         });
-        
     } catch (error) {
-        console.log(`   ⚡ Estado:    ❌ Error: ${error.message}`);
-        console.error('❌ Detalle del error:', error);
+        console.error('❌ No se pudo iniciar el servidor:', error);
         process.exit(1);
     }
 };
