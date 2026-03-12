@@ -1,44 +1,22 @@
 // utils/hash.js
-const bcrypt = require('bcryptjs');
+import bcrypt from 'bcryptjs';
 
 /**
- * Utilidades para hash de contraseñas
+ * Hashear una contraseña
+ * @param {string} password 
+ * @returns {Promise<string>}
  */
-
-const saltRounds = 10;
-
-/**
- * Encriptar contraseña
- * @param {string} password - Contraseña en texto plano
- * @returns {Promise<string>} - Contraseña encriptada
- */
-const hashPassword = async (password) => {
-    try {
-        const salt = await bcrypt.genSalt(saltRounds);
-        const hash = await bcrypt.hash(password, salt);
-        return hash;
-    } catch (error) {
-        console.error('❌ Error al encriptar contraseña:', error);
-        throw new Error('Error al encriptar contraseña');
-    }
+export const hashPassword = async (password) => {
+    const salt = await bcrypt.genSalt(10);
+    return await bcrypt.hash(password, salt);
 };
 
 /**
- * Comparar contraseña con hash
- * @param {string} password - Contraseña en texto plano
- * @param {string} hash - Hash almacenado
- * @returns {Promise<boolean>} - true si coinciden
+ * Comparar contraseña plana con hash
+ * @param {string} password 
+ * @param {string} hash 
+ * @returns {Promise<boolean>}
  */
-const comparePassword = async (password, hash) => {
-    try {
-        return await bcrypt.compare(password, hash);
-    } catch (error) {
-        console.error('❌ Error al comparar contraseñas:', error);
-        throw new Error('Error al comparar contraseñas');
-    }
-};
-
-module.exports = {
-    hashPassword,
-    comparePassword
+export const comparePassword = async (password, hash) => {
+    return await bcrypt.compare(password, hash);
 };

@@ -72,7 +72,7 @@ const usuarioController = {
                 IdRol: usuario.IdRol,
                 Estado: usuario.Estado,
                 EstadoTexto: usuario.Estado === 'activo' ? 'Activado' : 
-                             usuario.Estado === 'pendiente' ? 'Pendiente' : 'Desactivado'
+                usuario.Estado === 'pendiente' ? 'Pendiente' : 'Desactivado'
             }));
 
             const totalPages = Math.ceil(count / limit);
