@@ -4,132 +4,127 @@ import { sequelize } from '../config/db.js';
 import bcrypt from 'bcryptjs';
 
 const Usuario = sequelize.define('Usuario', {
-    IdUsuario: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true,
-        allowNull: false,
-        field: 'IdUsuario'
-    },
-    Nombre: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        field: 'Nombre',
-        validate: {
-            notEmpty: { msg: 'El nombre es requerido' },
-            len: { args: [3, 100], msg: 'El nombre debe tener entre 3 y 100 caracteres' }
-        }
-    },
-    Correo: {
-        type: DataTypes.STRING(100),
-        allowNull: false,
-        unique: true,
-        field: 'Correo',
-        validate: {
-            isEmail: { msg: 'Debe proporcionar un correo electrónico válido' }
-        }
-    },
-    Clave: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        field: 'Clave',
-        validate: {
-            notEmpty: { msg: 'La contraseña es requerida' },
-            len: { args: [6, 100], msg: 'La contraseña debe tener al menos 6 caracteres' }
-        }
-    },
-    // 🟢 Estado: pendiente/activo/inactivo
-    Estado: {
-        type: DataTypes.ENUM('pendiente', 'activo', 'inactivo'),
-        allowNull: false,
-        defaultValue: 'pendiente',
-        field: 'Estado',
-        comment: 'Estado del usuario: pendiente (requiere aprobación), activo, inactivo'
-    },
-    // 🟢 IdRol para asignar permisos mediante la tabla Roles
-    IdRol: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-        field: 'IdRol',  // ✅ CORREGIDO: Sin espacio
-        references: { model: 'Roles', key: 'IdRol' }
+  IdUsuario: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+    allowNull: false,
+    field: 'IdUsuario'
+  },
+  Nombre: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    field: 'Nombre',
+    validate: {
+      notEmpty: { msg: 'El nombre es requerido' },
+      len: { args: [3, 100], msg: 'El nombre debe tener entre 3 y 100 caracteres' }
     }
+  },
+  Correo: {
+    type: DataTypes.STRING(100),
+    allowNull: false,
+    unique: true,
+    field: 'Correo',
+    validate: {
+      isEmail: { msg: 'Debe proporcionar un correo electrónico válido' }
+    } 
+  },
+  Clave: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    field: 'Clave',
+    validate: {
+      notEmpty: { msg: 'La contraseña es requerida' },
+      len: { args: [6, 100], msg: 'La contraseña debe tener al menos 6 caracteres' }
+    }
+  },
+  Estado: {
+    type: DataTypes.ENUM('pendiente', 'activo', 'inactivo'),
+    allowNull: false,
+    defaultValue: 'pendiente',
+    field: 'Estado',
+    comment: 'Estado del usuario: pendiente (requiere aprobación), activo, inactivo'
+  },
+  IdRol: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    field: 'IdRol',
+    references: { model: 'Roles', key: 'IdRol' }
+  }
 }, {
-    tableName: 'Usuarios',
-    timestamps: false,
-    hooks: {
-        beforeCreate: async (usuario) => {  // ✅ CORREGIDO: => sin espacio
-            if (usuario.Clave) {
-                const salt = await bcrypt.genSalt(10);
-                usuario.Clave = await bcrypt.hash(usuario.Clave, salt);
-            }
-            if (usuario.Correo) {
-                usuario.Correo = usuario.Correo.toLowerCase();  // ✅ CORREGIDO: sin espacio
-            }
-        },
-        beforeUpdate: async (usuario) => {  // ✅ CORREGIDO: => sin espacio
-            if (usuario.changed('Clave') && usuario.Clave) {  // ✅ CORREGIDO: && sin espacio
-                const salt = await bcrypt.genSalt(10);
-                usuario.Clave = await bcrypt.hash(usuario.Clave, salt);
-            }
-            if (usuario.changed('Correo') && usuario.Correo) {  // ✅ CORREGIDO: && sin espacio
-                usuario.Correo = usuario.Correo.toLowerCase();
-            }
-        }
+  tableName: 'Usuarios',
+  timestamps: false,
+  hooks: {
+    beforeCreate: async (usuario) => {
+      if (usuario.Clave) {
+        const salt = await bcrypt.genSalt(10);
+        usuario.Clave = await bcrypt.hash(usuario.Clave, salt);
+      }
+      if (usuario.Correo) {
+        usuario.Correo = usuario.Correo.toLowerCase();
+      }
+    },
+    beforeUpdate: async (usuario) => {
+      if (usuario.changed('Clave') && usuario.Clave) {
+        const salt = await bcrypt.genSalt(10);
+        usuario.Clave = await bcrypt.hash(usuario.Clave, salt);
+      }
+      if (usuario.changed('Correo') && usuario.Correo) {
+        usuario.Correo = usuario.Correo.toLowerCase();
+      }
     }
+  }
 });
 
 // Métodos personalizados
 Usuario.prototype.validarClave = async function(clave) {
-    return await bcrypt.compare(clave, this.Clave);
+  return await bcrypt.compare(clave, this.Clave);
 };
 
 Usuario.prototype.toJSON = function() {
-    const values = { ...this.get() };
-    delete values.Clave;
-    return values;
+  const values = { ...this.get() };
+  delete values.Clave;
+  return values;
 };
 
 Usuario.prototype.estaActivo = function() {
-    return this.Estado === 'activo';
+  return this.Estado === 'activo';
 };
 
 Usuario.prototype.estaPendiente = function() {
-    return this.Estado === 'pendiente';
+  return this.Estado === 'pendiente';
 };
-
-// 🟢 Eliminé esAdmin/esCliente porque ya no hay campo Tipo
-// Si los necesitas, se pueden verificar mediante el Rol
 
 // Buscar con filtros
 Usuario.buscarConFiltros = async function(filtros) {
-    const { search, rol, estado, page = 1, limit = 10 } = filtros;
-    const whereClause = {};
-    
-    if (search) {
-        whereClause[Op.or] = [
-            { Nombre: { [Op.like]: `%${search}%` } },
-            { Correo: { [Op.like]: `%${search}%` } }
-        ];
-    }
-    
-    if (rol) whereClause.IdRol = rol;
-    if (estado) whereClause.Estado = estado;
-    
-    return await this.findAndCountAll({
-        where: whereClause,
-        include: ['Rol'],
-        limit: parseInt(limit),
-        offset: (page - 1) * limit,
-        order: [['Nombre', 'ASC']]
-    });
+  const { search, rol, estado, page = 1, limit = 10 } = filtros;
+  const whereClause = {};
+  
+  if (search) {
+    whereClause[Op.or] = [
+      { Nombre: { [Op.like]: `%${search}%` } },
+      { Correo: { [Op.like]: `%${search}%` } }
+    ];
+  }
+
+  if (rol) whereClause.IdRol = rol;
+  if (estado) whereClause.Estado = estado;
+
+  return await this.findAndCountAll({
+    where: whereClause,
+    include: ['Rol'],
+    limit: parseInt(limit),
+    offset: (page - 1) * limit,
+    order: [['Nombre', 'ASC']]
+  });
 };
 
 // Buscar usuarios pendientes
 Usuario.buscarPendientes = async function() {
-    return await this.findAll({
-        where: { Estado: 'pendiente' },
-        include: ['Rol']
-    });
+  return await this.findAll({
+    where: { Estado: 'pendiente' },
+    include: ['Rol']
+  });
 };
 
 export default Usuario;

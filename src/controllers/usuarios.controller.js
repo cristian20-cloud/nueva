@@ -20,13 +20,12 @@ const usuarioController = {
                 limit = 7, 
                 search = '', 
                 rol,
-                tipo,
                 estado 
             } = req.query;
 
             const offset = (page - 1) * limit;
 
-            // Construir filtros
+            // Construir filtros (sin Tipo)
             const whereClause = {};
             
             if (search) {
@@ -38,10 +37,6 @@ const usuarioController = {
             
             if (rol) {
                 whereClause.IdRol = rol;
-            }
-            
-            if (tipo) {
-                whereClause.Tipo = tipo;
             }
             
             if (estado) {
@@ -62,12 +57,11 @@ const usuarioController = {
                 order: [['Nombre', 'ASC']]
             });
 
-            // Formatear respuesta con los nuevos campos
+            // Formatear respuesta (sin Tipo)
             const usuariosFormateados = rows.map(usuario => ({
                 IdUsuario: usuario.IdUsuario,
                 Nombre: usuario.Nombre,
                 Email: usuario.Correo,
-                Tipo: usuario.Tipo,
                 Rol: usuario.Rol?.Nombre || 'Sin rol',
                 IdRol: usuario.IdRol,
                 Estado: usuario.Estado,
@@ -117,7 +111,8 @@ const usuarioController = {
                 IdUsuario: u.IdUsuario,
                 Nombre: u.Nombre,
                 Correo: u.Correo,
-                Tipo: u.Tipo,
+                Rol: u.Rol?.Nombre,
+                IdRol: u.IdRol,
                 FechaRegistro: u.createdAt
             }));
 
@@ -160,10 +155,7 @@ const usuarioController = {
             }
 
             // Asignar rol y cambiar estado
-            const updateData = {
-                Estado: 'activo'
-            };
-            
+            const updateData = { Estado: 'activo' };
             if (IdRol) {
                 updateData.IdRol = IdRol;
             }
@@ -268,7 +260,7 @@ const usuarioController = {
                 include: [{
                     model: Permiso,
                     as: 'Permiso',
-                    attributes: ['IdPermiso', 'Nombre', 'Modulo']
+                    attributes: ['IdPermiso', 'NombrePermiso']
                 }]
             });
 
@@ -278,7 +270,6 @@ const usuarioController = {
                     IdUsuario: usuario.IdUsuario,
                     Nombre: usuario.Nombre,
                     Correo: usuario.Correo,
-                    Tipo: usuario.Tipo,
                     Rol: usuario.Rol?.Nombre,
                     RolDescripcion: usuario.Rol?.Descripcion,
                     IdRol: usuario.IdRol,
@@ -304,7 +295,7 @@ const usuarioController = {
         const transaction = await sequelize.transaction();
         
         try {
-            const { Nombre, Correo, Clave, IdRol, Tipo = 'empleado' } = req.body;
+            const { Nombre, Correo, Clave, IdRol } = req.body;
 
             // Validar datos
             const validationErrors = await validateUsuario(req.body);
@@ -322,14 +313,13 @@ const usuarioController = {
                 }
             }
 
-            // Crear usuario (admin crea usuarios activos)
+            // Crear usuario (sin campo Tipo)
             const nuevoUsuario = await Usuario.create({
                 Nombre: Nombre.trim(),
                 Correo: Correo.toLowerCase().trim(),
                 Clave,
                 IdRol,
-                Tipo,
-                Estado: 'activo' // Admin crea usuarios activos
+                Estado: 'activo'
             }, { transaction });
 
             await transaction.commit();
@@ -340,7 +330,6 @@ const usuarioController = {
                     IdUsuario: nuevoUsuario.IdUsuario,
                     Nombre: nuevoUsuario.Nombre,
                     Correo: nuevoUsuario.Correo,
-                    Tipo: nuevoUsuario.Tipo,
                     IdRol: nuevoUsuario.IdRol,
                     Estado: nuevoUsuario.Estado
                 },
@@ -368,7 +357,7 @@ const usuarioController = {
         
         try {
             const { id } = req.params;
-            const { Nombre, Correo, IdRol, Estado, Tipo } = req.body;
+            const { Nombre, Correo, IdRol, Estado } = req.body;
 
             if (isNaN(id)) {
                 await transaction.rollback();
@@ -382,7 +371,7 @@ const usuarioController = {
             }
 
             // Validar datos
-            const validationErrors = await validateUsuario({ Nombre, Correo, IdRol, Estado, Tipo }, id);
+            const validationErrors = await validateUsuario({ Nombre, Correo, IdRol, Estado }, id);
             if (validationErrors.length > 0) {
                 await transaction.rollback();
                 return res.status(400).json({ success: false, errors: validationErrors });
@@ -392,7 +381,6 @@ const usuarioController = {
             if (Nombre) updateData.Nombre = Nombre.trim();
             if (Correo) updateData.Correo = Correo.toLowerCase().trim();
             if (IdRol) updateData.IdRol = IdRol;
-            if (Tipo) updateData.Tipo = Tipo;
             if (Estado) updateData.Estado = Estado;
 
             await usuario.update(updateData, { transaction });
@@ -404,7 +392,6 @@ const usuarioController = {
                     IdUsuario: usuario.IdUsuario,
                     Nombre: usuario.Nombre,
                     Correo: usuario.Correo,
-                    Tipo: usuario.Tipo,
                     IdRol: usuario.IdRol,
                     Estado: usuario.Estado
                 },
@@ -443,7 +430,16 @@ const usuarioController = {
                 return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
             }
 
-            await usuario.update(req.body, { transaction });
+            // Filtrar campos permitidos (sin Tipo)
+            const allowedFields = ['Nombre', 'Correo', 'IdRol', 'Estado'];
+            const updateData = {};
+            for (const field of allowedFields) {
+                if (req.body[field] !== undefined) {
+                    updateData[field] = req.body[field];
+                }
+            }
+
+            await usuario.update(updateData, { transaction });
             await transaction.commit();
 
             res.json({ 
@@ -562,8 +558,9 @@ const usuarioController = {
                 return res.status(400).json({ success: false, message: 'ID de usuario inválido' });
             }
 
-            // Verificar permisos
-            if (req.usuario.IdUsuario !== parseInt(id) && req.usuario.Tipo !== 'admin') {
+            // ✅ Verificar permisos usando Rol.Nombre en lugar de Tipo
+            const esAdmin = req.usuario.Rol?.Nombre === 'Administrador';
+            if (req.usuario.IdUsuario !== parseInt(id) && !esAdmin) {
                 await transaction.rollback();
                 return res.status(403).json({ success: false, message: 'No tiene permisos' });
             }
@@ -783,7 +780,7 @@ const usuarioController = {
         try {
             const usuarios = await Usuario.findAll({
                 where: { Estado: 'activo' },
-                attributes: ['IdUsuario', 'Nombre', 'Correo', 'Tipo'],
+                attributes: ['IdUsuario', 'Nombre', 'Correo'],
                 include: [{
                     model: Rol,
                     as: 'Rol',
@@ -796,7 +793,6 @@ const usuarioController = {
                 IdUsuario: u.IdUsuario,
                 Nombre: u.Nombre,
                 Correo: u.Correo,
-                Tipo: u.Tipo,
                 Rol: u.Rol?.Nombre
             }));
 
@@ -828,7 +824,7 @@ const usuarioController = {
                     ],
                     Estado: 'activo'
                 },
-                attributes: ['IdUsuario', 'Nombre', 'Correo', 'Tipo'],
+                attributes: ['IdUsuario', 'Nombre', 'Correo'],
                 limit: 10
             });
 
@@ -851,7 +847,7 @@ const usuarioController = {
                     {
                         model: Rol,
                         as: 'Rol',
-                        attributes: ['IdRol', 'Nombre', 'Descripcion', 'Permisos']
+                        attributes: ['IdRol', 'Nombre', 'Descripcion']
                     },
                     {
                         model: Cliente,
@@ -870,7 +866,7 @@ const usuarioController = {
                     include: [{
                         model: Permiso,
                         as: 'Permiso',
-                        attributes: ['IdPermiso', 'Nombre', 'Modulo', 'Accion']
+                        attributes: ['IdPermiso', 'NombrePermiso']
                     }]
                 });
             }
@@ -913,8 +909,8 @@ const usuarioController = {
 
             await usuario.update(updateData, { transaction });
             
-            // Si es cliente, actualizar también en tabla Clientes
-            if (usuario.Tipo === 'cliente') {
+            // ✅ Si tiene rol de cliente, actualizar también en tabla Clientes
+            if (usuario.Rol?.Nombre === 'Usuario') {
                 await Cliente.update(
                     { Nombre, Correo: Correo?.toLowerCase().trim() },
                     { where: { IdUsuario: usuario.IdUsuario }, transaction }
@@ -958,14 +954,7 @@ const usuarioController = {
                 group: ['IdRol']
             });
 
-            // Usuarios por tipo
-            const usuariosPorTipo = await Usuario.findAll({
-                attributes: [
-                    'Tipo',
-                    [sequelize.fn('COUNT', sequelize.col('Usuario.IdUsuario')), 'cantidad']
-                ],
-                group: ['Tipo']
-            });
+            // ✅ Eliminado: Usuarios por Tipo (ya no existe ese campo)
 
             res.json({
                 success: true,
@@ -977,11 +966,8 @@ const usuarioController = {
                     usuariosPorRol: usuariosPorRol.map(item => ({
                         rol: item.Rol?.Nombre,
                         cantidad: parseInt(item.dataValues.cantidad)
-                    })),
-                    usuariosPorTipo: usuariosPorTipo.map(item => ({
-                        tipo: item.Tipo,
-                        cantidad: parseInt(item.dataValues.cantidad)
                     }))
+                    // ✅ Eliminado: usuariosPorTipo
                 }
             });
 

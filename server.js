@@ -1,11 +1,11 @@
 // server.js
 import express from 'express';
 import cors from 'cors';
-import { connectDB } from './config/db.js';
+import { connectDB } from './src/config/db.js';  // ⭐ Agregado src/
 
 // Importar rutas
-import authRoutes from './routes/auth.routes.js';
-import usuarioRoutes from './routes/usuarios.routes.js';
+import authRoutes from './src/routes/auth.routes.js';  // ⭐ Agregado src/
+import usuarioRoutes from './src/routes/usuarios.routes.js';  // ⭐ Agregado src/
 
 const app = express();
 
@@ -22,7 +22,7 @@ const PORT = process.env.PORT || 3000;
 
 const startServer = async () => {
     try {
-        await connectDB();  // ✅ Esto ahora carga modelos + asociaciones
+        await connectDB();
         
         app.listen(PORT, () => {
             console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
