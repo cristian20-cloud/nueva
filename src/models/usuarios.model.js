@@ -3,10 +3,6 @@ import { DataTypes, Op } from 'sequelize';
 import { sequelize } from '../config/db.js';
 import bcrypt from 'bcryptjs';
 
-/**
- * Modelo de Usuarios
- * Representa los usuarios del sistema
- */
 const Usuario = sequelize.define('Usuario', {
     IdUsuario: {
         type: DataTypes.INTEGER,
@@ -42,15 +38,7 @@ const Usuario = sequelize.define('Usuario', {
             len: { args: [6, 100], msg: 'La contraseña debe tener al menos 6 caracteres' }
         }
     },
-    // 🟢 NUEVO: Tipo de usuario (admin, cliente, empleado)
-    Tipo: {
-        type: DataTypes.ENUM('admin', 'cliente', 'empleado'),
-        allowNull: false,
-        defaultValue: 'cliente',
-        field: 'Tipo',
-        comment: 'Tipo de usuario: admin, cliente o empleado'
-    },
-    // 🟢 MODIFICADO: Estado ahora es ENUM con pendiente/activo/inactivo
+    // 🟢 Estado: pendiente/activo/inactivo
     Estado: {
         type: DataTypes.ENUM('pendiente', 'activo', 'inactivo'),
         allowNull: false,
@@ -58,32 +46,32 @@ const Usuario = sequelize.define('Usuario', {
         field: 'Estado',
         comment: 'Estado del usuario: pendiente (requiere aprobación), activo, inactivo'
     },
+    // 🟢 IdRol para asignar permisos mediante la tabla Roles
     IdRol: {
         type: DataTypes.INTEGER,
-        allowNull: true, // 🟢 MODIFICADO: Ahora puede ser null hasta que el admin asigne rol
-        field: 'IdRol',
+        allowNull: true,
+        field: 'IdRol',  // ✅ CORREGIDO: Sin espacio
         references: { model: 'Roles', key: 'IdRol' }
     }
 }, {
     tableName: 'Usuarios',
     timestamps: false,
     hooks: {
-        beforeCreate: async (usuario) => {
+        beforeCreate: async (usuario) => {  // ✅ CORREGIDO: => sin espacio
             if (usuario.Clave) {
                 const salt = await bcrypt.genSalt(10);
                 usuario.Clave = await bcrypt.hash(usuario.Clave, salt);
             }
             if (usuario.Correo) {
-                usuario.Correo = usuario.Correo.toLowerCase();
+                usuario.Correo = usuario.Correo.toLowerCase();  // ✅ CORREGIDO: sin espacio
             }
-            // Si es cliente y no tiene rol, se le asigna rol por defecto después (en controlador)
         },
-        beforeUpdate: async (usuario) => {
-            if (usuario.changed('Clave') && usuario.Clave) {
+        beforeUpdate: async (usuario) => {  // ✅ CORREGIDO: => sin espacio
+            if (usuario.changed('Clave') && usuario.Clave) {  // ✅ CORREGIDO: && sin espacio
                 const salt = await bcrypt.genSalt(10);
                 usuario.Clave = await bcrypt.hash(usuario.Clave, salt);
             }
-            if (usuario.changed('Correo') && usuario.Correo) {
+            if (usuario.changed('Correo') && usuario.Correo) {  // ✅ CORREGIDO: && sin espacio
                 usuario.Correo = usuario.Correo.toLowerCase();
             }
         }
@@ -101,41 +89,32 @@ Usuario.prototype.toJSON = function() {
     return values;
 };
 
-// 🟢 MODIFICADO: Verificar si está activo (ahora es ENUM)
 Usuario.prototype.estaActivo = function() {
     return this.Estado === 'activo';
 };
 
-// 🟢 NUEVO: Verificar si está pendiente
 Usuario.prototype.estaPendiente = function() {
     return this.Estado === 'pendiente';
 };
 
-// 🟢 NUEVO: Obtener tipo de usuario
-Usuario.prototype.esAdmin = function() {
-    return this.Tipo === 'admin';
-};
+// 🟢 Eliminé esAdmin/esCliente porque ya no hay campo Tipo
+// Si los necesitas, se pueden verificar mediante el Rol
 
-Usuario.prototype.esCliente = function() {
-    return this.Tipo === 'cliente';
-};
-
-// 🟢 MODIFICADO: Buscar con filtros adaptado a nuevos estados
+// Buscar con filtros
 Usuario.buscarConFiltros = async function(filtros) {
-    const { search, rol, estado, tipo, page = 1, limit = 10 } = filtros;
+    const { search, rol, estado, page = 1, limit = 10 } = filtros;
     const whereClause = {};
-
+    
     if (search) {
         whereClause[Op.or] = [
             { Nombre: { [Op.like]: `%${search}%` } },
             { Correo: { [Op.like]: `%${search}%` } }
         ];
     }
-
+    
     if (rol) whereClause.IdRol = rol;
-    if (tipo) whereClause.Tipo = tipo;
     if (estado) whereClause.Estado = estado;
-
+    
     return await this.findAndCountAll({
         where: whereClause,
         include: ['Rol'],
@@ -145,7 +124,7 @@ Usuario.buscarConFiltros = async function(filtros) {
     });
 };
 
-// 🟢 NUEVO: Buscar usuarios pendientes
+// Buscar usuarios pendientes
 Usuario.buscarPendientes = async function() {
     return await this.findAll({
         where: { Estado: 'pendiente' },

@@ -11,7 +11,6 @@ import { generateToken } from '../utils/jwt.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import { validateLogin, validateRegistro } from '../utils/validationUtils.js';
 
-// 🔥 Firebase opcional
 let firebaseAuth = null;
 let sendPasswordResetEmail = null;
 
@@ -34,10 +33,6 @@ if (process.env.FIREBASE_API_KEY && process.env.FIREBASE_AUTH_DOMAIN) {
 }
 
 const authController = {
-    /**
-     * Registro de usuario (público - para clientes)
-     * @route POST /api/auth/registro
-     */
     registro: async (req, res) => {
         try {
             const { nombre, correo, clave, esCliente = true, datosCliente } = req.body;
@@ -65,7 +60,6 @@ const authController = {
                 Correo: correo.toLowerCase().trim(),
                 Clave: clave,
                 IdRol: IdRol,
-                Tipo: esCliente ? 'cliente' : 'empleado',
                 Estado: 'pendiente'
             });
 
@@ -85,7 +79,6 @@ const authController = {
                     IdUsuario: nuevoUsuario.IdUsuario,
                     Nombre: nuevoUsuario.Nombre,
                     Correo: nuevoUsuario.Correo,
-                    Tipo: nuevoUsuario.Tipo,
                     Estado: nuevoUsuario.Estado
                 }
             }, 'Registro completado', 201);
@@ -96,10 +89,6 @@ const authController = {
         }
     },
 
-    /**
-     * Iniciar sesión
-     * @route POST /api/auth/login
-     */
     login: async (req, res) => {
         try {
             const { correo, clave } = req.body;
@@ -138,9 +127,10 @@ const authController = {
                 case 'inactivo':
                     return errorResponse(res, 'Usuario inactivo. Contacte al administrador', 403);
                 case 'activo':
-                    if (usuario.Tipo === 'cliente') {
+                    const rolNombre = usuario.Rol?.Nombre;
+                    if (rolNombre === 'Usuario') {
                         redirectTo = '/cliente/dashboard';
-                    } else if (usuario.Tipo === 'admin' || usuario.Rol?.Nombre === 'Administrador') {
+                    } else if (rolNombre === 'Administrador') {
                         redirectTo = '/admin/dashboard';
                     }
                     break;
@@ -166,7 +156,6 @@ const authController = {
                 id: usuario.IdUsuario,
                 correo: usuario.Correo,
                 nombre: usuario.Nombre,
-                tipo: usuario.Tipo,
                 estado: usuario.Estado,
                 rol: usuario.Rol?.Nombre,
                 rolId: usuario.IdRol,
@@ -178,7 +167,6 @@ const authController = {
                     IdUsuario: usuario.IdUsuario,
                     Nombre: usuario.Nombre,
                     Correo: usuario.Correo,
-                    Tipo: usuario.Tipo,
                     Estado: usuario.Estado,
                     Rol: usuario.Rol?.Nombre,
                     permisos: permisosArray
@@ -193,10 +181,6 @@ const authController = {
         }
     },
 
-    /**
-     * Verificar token
-     * @route GET /api/auth/verify
-     */
     verify: async (req, res) => {
         try {
             if (!req.usuario) {
@@ -236,13 +220,9 @@ const authController = {
         }
     },
 
-    /**
-     * Registrar usuario (admin)
-     * @route POST /api/auth/register
-     */
     register: async (req, res) => {
         try {
-            const { nombre, correo, clave, idRol, tipo = 'empleado' } = req.body;
+            const { nombre, correo, clave, idRol } = req.body;
             
             const existe = await Usuario.findOne({
                 where: { Correo: correo.toLowerCase().trim() }
@@ -257,7 +237,6 @@ const authController = {
                 Correo: correo.toLowerCase().trim(),
                 Clave: clave,
                 IdRol: idRol,
-                Tipo: tipo,
                 Estado: 'activo'
             });
 
@@ -265,7 +244,6 @@ const authController = {
                 IdUsuario: nuevoUsuario.IdUsuario,
                 Nombre: nuevoUsuario.Nombre,
                 Correo: nuevoUsuario.Correo,
-                Tipo: nuevoUsuario.Tipo,
                 Estado: nuevoUsuario.Estado
             }, 'Usuario registrado exitosamente', 201);
 
@@ -275,10 +253,6 @@ const authController = {
         }
     },
 
-    /**
-     * Cambiar contraseña
-     * @route POST /api/auth/change-password
-     */
     changePassword: async (req, res) => {
         try {
             const { claveActual, claveNueva } = req.body;
@@ -308,10 +282,6 @@ const authController = {
         }
     },
 
-    /**
-     * Recuperar contraseña
-     * @route POST /api/auth/forgot-password
-     */
     forgotPassword: async (req, res) => {
         try {
             const { correo } = req.body;
