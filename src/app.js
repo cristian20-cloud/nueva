@@ -56,15 +56,30 @@ app.use('/api/tallas', tallasRoutes);
 app.use('/api/imagenes', imagenesRoutes);
 
 // ============================================
-// PÁGINA PRINCIPAL
+// PÁGINA PRINCIPAL (VERSIÓN SIMPLE)
 // ============================================
 app.get('/', (req, res) => {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
   
   const modulos = [
-    'productos', 'categorias', 'proveedores', 'compras',
-    'detalleCompras', 'ventas', 'detalleVentas', 'clientes',
-    'usuarios', 'roles', 'permisos', 'estados', 'tallas', 'devoluciones'
+    { nombre: 'Dashboard', ruta: 'dashboard' },
+    { nombre: 'Auth', ruta: 'auth/login' },
+    { nombre: 'Productos', ruta: 'productos' },
+    { nombre: 'Categorías', ruta: 'categorias' },
+    { nombre: 'Proveedores', ruta: 'proveedores' },
+    { nombre: 'Compras', ruta: 'compras' },
+    { nombre: 'Detalle Compras', ruta: 'detallecompras' },
+    { nombre: 'Devoluciones', ruta: 'devoluciones' },
+    { nombre: 'Clientes', ruta: 'clientes' },
+    { nombre: 'Ventas', ruta: 'ventas' },
+    { nombre: 'Detalle Ventas', ruta: 'detalleventas' },
+    { nombre: 'Usuarios', ruta: 'usuarios' },
+    { nombre: 'Roles', ruta: 'roles' },
+    { nombre: 'Permisos', ruta: 'permisos' },
+    { nombre: 'Detalle Permisos', ruta: 'detallepermisos' },
+    { nombre: 'Estados', ruta: 'estados' },
+    { nombre: 'Tallas', ruta: 'tallas' },
+    { nombre: 'Imágenes', ruta: 'imagenes' }
   ];
 
   const html = `
@@ -72,28 +87,59 @@ app.get('/', (req, res) => {
     <html>
     <head>
       <meta charset="UTF-8">
-      <title>API Gestión - Stree Caps</title>
+      <title>API Gestión</title>
       <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
-        h1 { color: #333; }
-        ul { list-style: none; padding: 0; }
-        li { margin: 10px 0; }
-        a { color: #007bff; text-decoration: none; }
-        a:hover { text-decoration: underline; }
+        body { 
+          font-family: monospace; 
+          max-width: 900px; 
+          margin: 20px auto; 
+          padding: 20px; 
+          line-height: 1.5;
+        }
+        h1, h2, h3 { 
+          margin-top: 20px;
+          margin-bottom: 10px;
+        }
+        ul { 
+          list-style: square;
+          padding-left: 20px;
+        }
+        li { 
+          margin: 5px 0;
+        }
+        a { 
+          color: #000;
+          text-decoration: underline;
+        }
+        a:hover {
+          background: #f0f0f0;
+        }
+        hr {
+          border: none;
+          border-top: 1px solid #ccc;
+          margin: 20px 0;
+        }
       </style>
     </head>
     <body>
-      <h1>🧢 Stree Caps API</h1>
-      <p>API funcionando correctamente ✅</p>
-      <h2>Módulos disponibles:</h2>
+      <h1>API Gestión</h1>
+      <p>API funcionando correctamente</p>
+      <hr>
+
+      <h2>Módulos Disponibles:</h2>
       <ul>
-        ${modulos.map(m => `<li><a href="${baseUrl}/api/${m}" target="_blank">/api/${m}</a></li>`).join('')}
+        ${modulos.map(m => `<li><a href="${baseUrl}/api/${m.ruta}" target="_blank">/api/${m.ruta}</a> - ${m.nombre}</li>`).join('')}
       </ul>
+      <hr>
+
       <h2>Utilidades:</h2>
       <ul>
-        <li><a href="${baseUrl}/health">/health</a> - Estado del servidor</li>
-        <li><a href="${baseUrl}/api/auth/login">/api/auth/login</a> - Login</li>
+        <li><a href="${baseUrl}/health" target="_blank">/health</a> - Estado del servidor</li>
       </ul>
+      <hr>
+
+      <p>Uptime: ${Math.floor(process.uptime())} segundos</p>
+      <p>Timestamp: ${new Date().toLocaleString()}</p>
     </body>
     </html>
   `;
