@@ -1,45 +1,71 @@
 // src/scripts/consultarUsuarios.js
 import { sequelize } from '../config/db.js';
-import Usuario from '../models/usuarios.model.js';
-import Rol from '../models/roles.model.js';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-async function consultarUsuarios() {
-    try {
-        // Opción 1: Usando Sequelize (recomendado)
-        const usuarios = await Usuario.findAll({
-            include: [{
-                model: Rol,
-                as: 'Rol',
-                attributes: ['IdRol', 'Nombre']
-            }],
-            attributes: ['IdUsuario', 'Nombre', 'Correo', 'Tipo', 'Estado']
-        });
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-        console.log('📋 Usuarios encontrados:', usuarios.length);
-        console.table(usuarios.map(u => ({
-            ID: u.IdUsuario,
-            Nombre: u.Nombre,
-            Correo: u.Correo,
-            Tipo: u.Tipo,
-            Estado: u.Estado,
-            Rol: u.Rol?.Nombre
-        })));
+// Cargar .env desde la raíz
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-        // Opción 2: SQL directo
-        const [results] = await sequelize.query(`
-            SELECT u."IdUsuario", u."Nombre", u."Correo", r."Nombre" as "Rol"
-            FROM "Usuarios" u
-            LEFT JOIN "Roles" r ON u."IdRol" = r."IdRol"
-        `);
-        
-        console.log('\n📊 Resultado SQL directo:', results.length);
+const consultarUsuarios = async () => {
+  try {
+    await sequelize.authenticate();
+    console.log('✅ Conectado a la base de datos\n');
 
-    } catch (error) {
-        console.error('❌ Error:', error.message);
-    } finally {
-        await sequelize.close();
-        process.exit(0);
+    // PRIMERO: Verificar qué columnas existen en la tabla Usuarios
+    const [columnas] = await sequelize.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'Usuarios'
+    `);
+    
+    console.log('📋 COLUMNAS DISPONIBLES EN TABLA USUARIOS:');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    columnas.forEach(col => console.log(`   - ${col.column_name}`));
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+    // Consultar todos los usuarios SIN usar CreadoEn si no existe
+    const [usuarios] = await sequelize.query(`
+      SELECT 
+        u."IdUsuario",
+        u."Nombre",
+        u."Correo",
+        u."Estado",
+        u."IdRol",
+        r."Nombre" as "Rol"
+      FROM "Usuarios" u
+      LEFT JOIN "Roles" r ON u."IdRol" = r."IdRol"
+      ORDER BY u."IdUsuario" DESC
+    `);
+
+    if (usuarios.length === 0) {
+      console.log('📭 No hay usuarios registrados');
+      return;
     }
-}
+
+    console.log('📋 LISTA DE USUARIOS');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`Total: ${usuarios.length} usuarios\n`);
+
+    usuarios.forEach((user, index) => {
+      console.log(`👤 USUARIO #${index + 1}`);
+      console.log(`   ID: ${user.IdUsuario}`);
+      console.log(`   Nombre: ${user.Nombre}`);
+      console.log(`   Correo: ${user.Correo}`);
+      console.log(`   Rol: ${user.Rol || 'Sin rol'} (ID: ${user.IdRol || 'N/A'})`);
+      console.log(`   Estado: ${user.Estado ? '✅ Activo' : '❌ Inactivo'}`);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    });
+
+  } catch (error) {
+    console.error('❌ Error:', error.message);
+  } finally {
+    await sequelize.close();
+    process.exit(0);
+  }
+};
 
 consultarUsuarios();
