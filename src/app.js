@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 
-// Importar rutas (TODAS corregidas - SIN ESPACIOS)
+// Importar rutas
 import productosRoutes from './routes/productos.routes.js';
 import proveedoresRoutes from './routes/proveedores.routes.js';
 import categoriasRoutes from './routes/categorias.routes.js';
@@ -62,24 +62,25 @@ app.get('/', (req, res) => {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
   
   const modulos = [
-    { nombre: 'Dashboard', ruta: 'dashboard' },
-    { nombre: 'Auth', ruta: 'auth/login' },
-    { nombre: 'Productos', ruta: 'productos' },
-    { nombre: 'Categorías', ruta: 'categorias' },
-    { nombre: 'Proveedores', ruta: 'proveedores' },
-    { nombre: 'Compras', ruta: 'compras' },
-    { nombre: 'Detalle Compras', ruta: 'detallecompras' },
-    { nombre: 'Devoluciones', ruta: 'devoluciones' },
-    { nombre: 'Clientes', ruta: 'clientes' },
-    { nombre: 'Ventas', ruta: 'ventas' },
-    { nombre: 'Detalle Ventas', ruta: 'detalleventas' },
-    { nombre: 'Usuarios', ruta: 'usuarios' },
-    { nombre: 'Roles', ruta: 'roles' },
-    { nombre: 'Permisos', ruta: 'permisos' },
-    { nombre: 'Detalle Permisos', ruta: 'detallepermisos' },
-    { nombre: 'Estados', ruta: 'estados' },
-    { nombre: 'Tallas', ruta: 'tallas' },
-    { nombre: 'Imágenes', ruta: 'imagenes' }
+    { nombre: 'Dashboard', ruta: 'dashboard', metodo: 'GET' },
+    { nombre: 'Auth - Login', ruta: 'auth/login', metodo: 'POST' },
+    { nombre: 'Auth - Registro', ruta: 'auth/registro', metodo: 'POST' },
+    { nombre: 'Productos', ruta: 'productos', metodo: 'GET, POST' },
+    { nombre: 'Categorías', ruta: 'categorias', metodo: 'GET, POST' },
+    { nombre: 'Proveedores', ruta: 'proveedores', metodo: 'GET, POST' },
+    { nombre: 'Compras', ruta: 'compras', metodo: 'GET, POST' },
+    { nombre: 'Detalle Compras', ruta: 'detallecompras', metodo: 'GET' },
+    { nombre: 'Devoluciones', ruta: 'devoluciones', metodo: 'GET, POST' },
+    { nombre: 'Clientes', ruta: 'clientes', metodo: 'GET, POST' },
+    { nombre: 'Ventas', ruta: 'ventas', metodo: 'GET, POST' },
+    { nombre: 'Detalle Ventas', ruta: 'detalleventas', metodo: 'GET' },
+    { nombre: 'Usuarios', ruta: 'usuarios', metodo: 'GET, POST' },
+    { nombre: 'Roles', ruta: 'roles', metodo: 'GET, POST' },
+    { nombre: 'Permisos', ruta: 'permisos', metodo: 'GET, POST' },
+    { nombre: 'Detalle Permisos', ruta: 'detallepermisos', metodo: 'GET' },
+    { nombre: 'Estados', ruta: 'estados', metodo: 'GET, POST' },
+    { nombre: 'Tallas', ruta: 'tallas', metodo: 'GET, POST' },
+    { nombre: 'Imágenes', ruta: 'imagenes', metodo: 'GET, POST' }
   ];
 
   const html = `
@@ -87,59 +88,67 @@ app.get('/', (req, res) => {
     <html>
     <head>
       <meta charset="UTF-8">
-      <title>API Gestión</title>
+      <title>API</title>
       <style>
-        body { 
-          font-family: monospace; 
-          max-width: 900px; 
-          margin: 20px auto; 
-          padding: 20px; 
-          line-height: 1.5;
+        body {
+          font-family: Arial, sans-serif;
+          margin: 30px;
+          line-height: 1.6;
         }
-        h1, h2, h3 { 
-          margin-top: 20px;
-          margin-bottom: 10px;
+        h1 {
+          font-size: 24px;
+          margin-bottom: 5px;
         }
-        ul { 
-          list-style: square;
-          padding-left: 20px;
+        h2 {
+          font-size: 20px;
+          margin-top: 25px;
+          margin-bottom: 15px;
+          border-bottom: 1px solid #ccc;
+          padding-bottom: 5px;
         }
-        li { 
-          margin: 5px 0;
+        ul {
+          list-style: none;
+          padding: 0;
         }
-        a { 
-          color: #000;
-          text-decoration: underline;
+        li {
+          margin-bottom: 8px;
+        }
+        a {
+          color: #0066cc;
+          text-decoration: none;
         }
         a:hover {
-          background: #f0f0f0;
+          text-decoration: underline;
         }
-        hr {
-          border: none;
-          border-top: 1px solid #ccc;
-          margin: 20px 0;
+        .metodo {
+          color: #666;
+          font-size: 12px;
+          margin-left: 10px;
+        }
+        .info {
+          color: #666;
+          font-size: 14px;
         }
       </style>
     </head>
     <body>
-      <h1>API Gestión</h1>
-      <p>API funcionando correctamente</p>
-      <hr>
+      <h1>API</h1>
+      <p class="info">Servidor funcionando</p>
 
-      <h2>Módulos Disponibles:</h2>
+      <h2>Módulos</h2>
       <ul>
-        ${modulos.map(m => `<li><a href="${baseUrl}/api/${m.ruta}" target="_blank">/api/${m.ruta}</a> - ${m.nombre}</li>`).join('')}
+        ${modulos.map(m => `
+          <li>
+            <a href="${baseUrl}/api/${m.ruta}" target="_blank">/api/${m.ruta}</a>
+            <span class="metodo">[${m.metodo}]</span> - ${m.nombre}
+          </li>
+        `).join('')}
       </ul>
-      <hr>
 
-      <h2>Utilidades:</h2>
+      <h2>Utilidades</h2>
       <ul>
-        <li><a href="${baseUrl}/health" target="_blank">/health</a> - Estado del servidor</li>
+        <li><a href="${baseUrl}/health" target="_blank">/health</a> - Estado</li>
       </ul>
-      <hr>
-
-      <p>Uptime: ${Math.floor(process.uptime())} segundos</p>
-      <p>Timestamp: ${new Date().toLocaleString()}</p>
     </body>
     </html>
   `;
@@ -147,7 +156,7 @@ app.get('/', (req, res) => {
   res.send(html);
 });
 
-// Ruta de salud para Render
+// Ruta de salud
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'OK', 
