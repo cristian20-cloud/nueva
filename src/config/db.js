@@ -43,7 +43,7 @@ export const initModels = async () => {
         
         // 3. Sincronizar con BD (solo en desarrollo)
         if (process.env.NODE_ENV === 'development') {
-            await sequelize.sync({ alter: true });
+            await sequelize.sync({ alter: false });
             console.log('🔄 Base de datos sincronizada');
         }
         

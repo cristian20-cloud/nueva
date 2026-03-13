@@ -1,3 +1,4 @@
+
 // models/usuarios.model.js
 import { DataTypes, Op } from 'sequelize';
 import { sequelize } from '../config/db.js';
@@ -27,7 +28,7 @@ const Usuario = sequelize.define('Usuario', {
     field: 'Correo',
     validate: {
       isEmail: { msg: 'Debe proporcionar un correo electrónico válido' }
-    } 
+    }
   },
   Clave: {
     type: DataTypes.STRING,
@@ -38,12 +39,19 @@ const Usuario = sequelize.define('Usuario', {
       len: { args: [6, 100], msg: 'La contraseña debe tener al menos 6 caracteres' }
     }
   },
+  // ✅ CAMPO CORREGIDO: VARCHAR + validación en lugar de ENUM
   Estado: {
-    type: DataTypes.ENUM('pendiente', 'activo', 'inactivo'),
-    allowNull: false,
+    type: DataTypes.STRING(20),
+    allowNull: true,
     defaultValue: 'pendiente',
     field: 'Estado',
-    comment: 'Estado del usuario: pendiente (requiere aprobación), activo, inactivo'
+    comment: 'Estado del usuario: pendiente (requiere aprobación), activo, inactivo',
+    validate: {
+      isIn: {
+        args: [['pendiente', 'activo', 'inactivo']],
+        msg: 'Estado no válido. Valores permitidos: pendiente, activo, inactivo'
+      }
+    }
   },
   IdRol: {
     type: DataTypes.INTEGER,
@@ -76,7 +84,10 @@ const Usuario = sequelize.define('Usuario', {
   }
 });
 
+// ──────────────────────────────────────────────────────────
 // Métodos personalizados
+// ──────────────────────────────────────────────────────────
+
 Usuario.prototype.validarClave = async function(clave) {
   return await bcrypt.compare(clave, this.Clave);
 };
@@ -95,6 +106,10 @@ Usuario.prototype.estaPendiente = function() {
   return this.Estado === 'pendiente';
 };
 
+// ──────────────────────────────────────────────────────────
+// Métodos estáticos
+// ──────────────────────────────────────────────────────────
+
 // Buscar con filtros
 Usuario.buscarConFiltros = async function(filtros) {
   const { search, rol, estado, page = 1, limit = 10 } = filtros;
@@ -106,13 +121,12 @@ Usuario.buscarConFiltros = async function(filtros) {
       { Correo: { [Op.like]: `%${search}%` } }
     ];
   }
-
   if (rol) whereClause.IdRol = rol;
   if (estado) whereClause.Estado = estado;
-
+  
   return await this.findAndCountAll({
     where: whereClause,
-    include: ['Rol'],
+    include: [{ association: 'Rol' }],  // ← Asegurar que la asociación existe
     limit: parseInt(limit),
     offset: (page - 1) * limit,
     order: [['Nombre', 'ASC']]
@@ -123,7 +137,7 @@ Usuario.buscarConFiltros = async function(filtros) {
 Usuario.buscarPendientes = async function() {
   return await this.findAll({
     where: { Estado: 'pendiente' },
-    include: ['Rol']
+    include: [{ association: 'Rol' }]
   });
 };
 
