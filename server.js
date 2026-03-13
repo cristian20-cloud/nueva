@@ -1,31 +1,19 @@
 // server.js
-import express from 'express';
-import cors from 'cors';
-import { connectDB } from './src/config/db.js';  // ⭐ Agregado src/
+import app from './src/app.js';  // ⭐ Importar app.js
+import { connectDB } from './src/config/db.js';
 
-// Importar rutas
-import authRoutes from './src/routes/auth.routes.js';  // ⭐ Agregado src/
-import usuarioRoutes from './src/routes/usuarios.routes.js';  // ⭐ Agregado src/
-
-const app = express();
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-
-// Rutas
-app.use('/api/auth', authRoutes);
-app.use('/api/usuarios', usuarioRoutes);
-
-// 🟢 Conectar BD y cargar modelos ANTES de escuchar
 const PORT = process.env.PORT || 3000;
 
 const startServer = async () => {
     try {
+        // 1. Conectar BD primero
         await connectDB();
+        console.log('✅ Base de datos conectada');
         
-        app.listen(PORT, () => {
+        // 2. Escuchar en el puerto
+        app.listen(PORT, '0.0.0.0', () => {
             console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+            console.log(`🌐 URL: http://localhost:${PORT}`);
         });
     } catch (error) {
         console.error('❌ No se pudo iniciar el servidor:', error);
