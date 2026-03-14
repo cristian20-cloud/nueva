@@ -56,31 +56,31 @@ app.use('/api/tallas', tallasRoutes);
 app.use('/api/imagenes', imagenesRoutes);
 
 // ============================================
-// PÁGINA PRINCIPAL (VERSIÓN SIMPLE)
+// PÁGINA PRINCIPAL - VERSIÓN MÍNIMA
 // ============================================
 app.get('/', (req, res) => {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
   
   const modulos = [
-    { nombre: 'Dashboard', ruta: 'dashboard', metodo: 'GET' },
-    { nombre: 'Auth - Login', ruta: 'auth/login', metodo: 'POST' },
-    { nombre: 'Auth - Registro', ruta: 'auth/registro', metodo: 'POST' },
-    { nombre: 'Productos', ruta: 'productos', metodo: 'GET, POST' },
-    { nombre: 'Categorías', ruta: 'categorias', metodo: 'GET, POST' },
-    { nombre: 'Proveedores', ruta: 'proveedores', metodo: 'GET, POST' },
-    { nombre: 'Compras', ruta: 'compras', metodo: 'GET, POST' },
-    { nombre: 'Detalle Compras', ruta: 'detallecompras', metodo: 'GET' },
-    { nombre: 'Devoluciones', ruta: 'devoluciones', metodo: 'GET, POST' },
-    { nombre: 'Clientes', ruta: 'clientes', metodo: 'GET, POST' },
-    { nombre: 'Ventas', ruta: 'ventas', metodo: 'GET, POST' },
-    { nombre: 'Detalle Ventas', ruta: 'detalleventas', metodo: 'GET' },
-    { nombre: 'Usuarios', ruta: 'usuarios', metodo: 'GET, POST' },
-    { nombre: 'Roles', ruta: 'roles', metodo: 'GET, POST' },
-    { nombre: 'Permisos', ruta: 'permisos', metodo: 'GET, POST' },
-    { nombre: 'Detalle Permisos', ruta: 'detallepermisos', metodo: 'GET' },
-    { nombre: 'Estados', ruta: 'estados', metodo: 'GET, POST' },
-    { nombre: 'Tallas', ruta: 'tallas', metodo: 'GET, POST' },
-    { nombre: 'Imágenes', ruta: 'imagenes', metodo: 'GET, POST' }
+    'dashboard',
+    'auth',
+    'productos',
+    'categorias',
+    'proveedores',
+    'compras',
+    'detallecompras',
+    'devoluciones',
+    'clientes',
+    'ventas',
+    'detalleventas',
+    'usuarios',
+    'roles',
+    'permisos',
+    'detallepermisos',
+    'estados',
+    'tallas',
+    'imagenes',
+    'health'
   ];
 
   const html = `
@@ -88,67 +88,21 @@ app.get('/', (req, res) => {
     <html>
     <head>
       <meta charset="UTF-8">
-      <title>API</title>
       <style>
-        body {
-          font-family: Arial, sans-serif;
-          margin: 30px;
-          line-height: 1.6;
+        body { 
+          margin: 10px; 
+          font-family: Arial;
         }
-        h1 {
-          font-size: 24px;
-          margin-bottom: 5px;
-        }
-        h2 {
-          font-size: 20px;
-          margin-top: 25px;
-          margin-bottom: 15px;
-          border-bottom: 1px solid #ccc;
-          padding-bottom: 5px;
-        }
-        ul {
-          list-style: none;
-          padding: 0;
-        }
-        li {
-          margin-bottom: 8px;
-        }
-        a {
-          color: #0066cc;
-          text-decoration: none;
-        }
-        a:hover {
+        a { 
+          color: blue; 
           text-decoration: underline;
-        }
-        .metodo {
-          color: #666;
-          font-size: 12px;
-          margin-left: 10px;
-        }
-        .info {
-          color: #666;
-          font-size: 14px;
+          margin-right: 15px;
+          white-space: nowrap;
         }
       </style>
     </head>
     <body>
-      <h1>API</h1>
-      <p class="info">Servidor funcionando</p>
-
-      <h2>Módulos</h2>
-      <ul>
-        ${modulos.map(m => `
-          <li>
-            <a href="${baseUrl}/api/${m.ruta}" target="_blank">/api/${m.ruta}</a>
-            <span class="metodo">[${m.metodo}]</span> - ${m.nombre}
-          </li>
-        `).join('')}
-      </ul>
-
-      <h2>Utilidades</h2>
-      <ul>
-        <li><a href="${baseUrl}/health" target="_blank">/health</a> - Estado</li>
-      </ul>
+      ${modulos.map(m => `<a href="${baseUrl}/api/${m}" target="_blank">/${m}</a>`).join('')}
     </body>
     </html>
   `;
