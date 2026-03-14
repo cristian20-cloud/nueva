@@ -56,7 +56,7 @@ app.use('/api/tallas', tallasRoutes);
 app.use('/api/imagenes', imagenesRoutes);
 
 // ============================================
-// PÁGINA PRINCIPAL - VERSIÓN MÍNIMA
+// PÁGINA PRINCIPAL - EN COLUMNA SIN SLASH
 // ============================================
 app.get('/', (req, res) => {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
@@ -90,19 +90,19 @@ app.get('/', (req, res) => {
       <meta charset="UTF-8">
       <style>
         body { 
-          margin: 10px; 
+          margin: 20px; 
           font-family: Arial;
         }
         a { 
           color: blue; 
           text-decoration: underline;
-          margin-right: 15px;
-          white-space: nowrap;
+          display: block;
+          margin-bottom: 8px;
         }
       </style>
     </head>
     <body>
-      ${modulos.map(m => `<a href="${baseUrl}/api/${m}" target="_blank">/${m}</a>`).join('')}
+      ${modulos.map(m => `<a href="${baseUrl}/api/${m}" target="_blank">${m}</a>`).join('')}
     </body>
     </html>
   `;
