@@ -1,19 +1,15 @@
-// models/detalleCompras.model.js
 import { DataTypes } from 'sequelize';
 import { sequelize } from '../config/db.js';
 
-const DetalleCompra = sequelize.define('DetalleCompra', {
-    IdDetalleCompra: {
+const CompraDetalle = sequelize.define('CompraDetalle', {
+    IdDetalle: {
         type: DataTypes.INTEGER,
         primaryKey: true,
-        autoIncrement: true,
-        allowNull: false,
-        field: 'IdDetalleCompra'
+        autoIncrement: true
     },
     IdCompra: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        field: 'IdCompra',
         references: {
             model: 'Compras',
             key: 'IdCompra'
@@ -21,45 +17,50 @@ const DetalleCompra = sequelize.define('DetalleCompra', {
     },
     IdProducto: {
         type: DataTypes.INTEGER,
-        allowNull: false,
-        field: 'IdProducto',
-        references: {
-            model: 'Productos',
-            key: 'IdProducto'
-        }
+        allowNull: true, // NULL si es producto nuevo no registrado en catálogo
+        comment: 'ID del producto en tabla Productos (opcional)'
+    },
+    NombreProducto: {
+        type: DataTypes.STRING(255),
+        allowNull: false
+    },
+    Talla: {
+        type: DataTypes.STRING(20),
+        allowNull: false
     },
     Cantidad: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        validate: {
-            min: { args: [1], msg: 'La cantidad debe ser al menos 1' }
-        },
-        field: 'Cantidad'
+        defaultValue: 1,
+        validate: { min: 1 }
     },
-    Precio: {
+    PrecioCompra: {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: false,
-        validate: {
-            min: { args: [0], msg: 'El precio no puede ser negativo' }
-        },
-        field: 'Precio'
+        defaultValue: 0
+    },
+    PrecioVenta: {
+        type: DataTypes.DECIMAL(10, 2),
+        defaultValue: 0
+    },
+    PrecioMayorista6: {
+        type: DataTypes.DECIMAL(10, 2),
+        defaultValue: 0
+    },
+    PrecioMayorista80: {
+        type: DataTypes.DECIMAL(10, 2),
+        defaultValue: 0
     },
     Subtotal: {
         type: DataTypes.DECIMAL(10, 2),
-        allowNull: false,
-        field: 'Subtotal'
+        defaultValue: 0,
+        comment: 'Cantidad * PrecioCompra (calculado en backend)'
     }
 }, {
-    tableName: 'DetalleCompras',
+    tableName: 'CompraDetalles',
     timestamps: false,
-    hooks: {
-        beforeCreate: (detalle) => {
-            detalle.Subtotal = detalle.Cantidad * detalle.Precio;
-        },
-        beforeUpdate: (detalle) => {
-            detalle.Subtotal = detalle.Cantidad * detalle.Precio;
-        }
-    }
+    charset: 'utf8mb4',
+    collate: 'utf8mb4_unicode_ci'
 });
 
-export default DetalleCompra; 
+export default CompraDetalle;

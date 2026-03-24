@@ -1,49 +1,22 @@
-// routes/devoluciones.routes.js
 import express from 'express';
 const router = express.Router();
 import devolucionController from '../controllers/devoluciones.controller.js';
-import { verifyToken, checkPermission } from '../middlewares/auth.middleware.js';
+import { verifyToken, checkRole } from '../middlewares/auth.middleware.js';
 
-/**
- * Rutas para el módulo de Devoluciones
- * Base URL: /api/devoluciones
- */
-
-// Todas las rutas requieren autenticación
 router.use(verifyToken);
 
-// ============================================
-// ESTADÍSTICAS Y REPORTES
-// ============================================
-router.get('/estadisticas', checkPermission('ver_devoluciones'), devolucionController.getEstadisticas);
-router.get('/reportes', checkPermission('ver_devoluciones'), devolucionController.generarReportes);
+// 1. ESPECÍFICAS PRIMERO
+router.get('/estadisticas', devolucionController.getEstadisticas);
+router.get('/venta/:ventaId', devolucionController.getDevolucionesByVenta);
+router.get('/producto/:productoId', devolucionController.getDevolucionesByProducto);
 
-// ============================================
-// RUTAS DE CONSULTA ESPECÍFICAS
-// ============================================
-router.get('/venta/:ventaId', checkPermission('ver_devoluciones'), devolucionController.getDevolucionesByVenta);
-router.get('/producto/:productoId', checkPermission('ver_devoluciones'), devolucionController.getDevolucionesByProducto);
-router.get('/fecha', checkPermission('ver_devoluciones'), devolucionController.getDevolucionesByFecha);
-router.get('/cliente/:clienteId', checkPermission('ver_devoluciones'), devolucionController.getDevolucionesByCliente);
+// 2. GENERALES DESPUÉS
+router.get('/', devolucionController.getAllDevoluciones);
+router.get('/:id', devolucionController.getDevolucionById);
 
-// ============================================
-// CRUD PRINCIPAL
-// ============================================
-router.get('/', checkPermission('ver_devoluciones'), devolucionController.getAllDevoluciones);
-router.get('/:id', checkPermission('ver_devoluciones'), devolucionController.getDevolucionById);
-router.post('/', checkPermission('crear_devoluciones'), devolucionController.createDevolucion);
-router.put('/:id', checkPermission('editar_devoluciones'), devolucionController.updateDevolucion);
-
-// ============================================
-// ACCIONES ESPECÍFICAS
-// ============================================
-router.patch('/:id/estado', checkPermission('procesar_devoluciones'), devolucionController.toggleDevolucionStatus);
-router.post('/:id/reembolso', checkPermission('procesar_devoluciones'), devolucionController.procesarReembolso);
-router.post('/:id/anular', checkPermission('anular_devoluciones'), devolucionController.anularDevolucion);
-
-// ============================================
-// NOTA: DELETE explícitamente excluido
-// Las devoluciones NUNCA se eliminan del sistema
-// ============================================
+router.post('/', checkRole(['ADMIN', 'SUPERVISOR']), devolucionController.createDevolucion);
+router.put('/:id', checkRole(['ADMIN', 'SUPERVISOR']), devolucionController.updateDevolucion);
+router.delete('/:id', checkRole(['ADMIN']), devolucionController.deleteDevolucion);
+router.patch('/:id/estado', checkRole(['ADMIN', 'SUPERVISOR']), devolucionController.toggleDevolucionStatus);
 
 export default router;
