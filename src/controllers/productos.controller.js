@@ -40,7 +40,7 @@ const productoController = {
                 return {
                     ...producto.toJSON(),
                     stockTotal,
-                    precioEfectivo: producto.EnOferta ? producto.PrecioOferta : producto.PrecioVenta
+                    precioEfectivo: producto.EnOfertaVenta ? producto.PrecioOferta : producto.PrecioVenta
                 };
             });
 
@@ -83,7 +83,7 @@ const productoController = {
                 data: {
                     ...producto.toJSON(),
                     stockTotal,
-                    precioEfectivo: producto.EnOferta ? producto.PrecioOferta : producto.PrecioVenta
+                    precioEfectivo: producto.EnOfertaVenta ? producto.PrecioOferta : producto.PrecioVenta
                 }
             });
         } catch (error) {

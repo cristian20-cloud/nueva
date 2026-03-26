@@ -34,6 +34,15 @@ const Producto = sequelize.define('Producto', {
         defaultValue: 'BEISBOLERA PREMIUM',
         comment: 'Categoría del producto (ej: BEISBOLERA PREMIUM, GORRA CLÁSICA)'
     },
+    IdCategoria: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        field: 'IdCategoria',
+        references: {
+            model: 'Categorias',
+            key: 'IdCategoria'
+        }
+    },
     Descripcion: {
         type: DataTypes.TEXT,
         allowNull: true,

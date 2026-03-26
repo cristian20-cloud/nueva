@@ -33,7 +33,7 @@ const authController = {
   registro: async (req, res) => {
     try {
       const { nombre, correo, clave, esCliente = true, datosCliente } = req.body;
-      
+
       if (!nombre || !correo || !clave) {
         return errorResponse(res, 'Nombre, correo y clave son requeridos', 400);
       }
@@ -90,16 +90,17 @@ const authController = {
     try {
       const { correo, clave } = req.body;
       const errors = validateLogin({ correo, clave });
-      
+
       if (errors.length > 0) {
         return errorResponse(res, 'Datos inválidos', 400, errors);
       }
 
+      // ✅ CAMBIO: as: 'rolData' en lugar de 'Rol'
       const usuario = await Usuario.findOne({
         where: { Correo: correo.toLowerCase().trim() },
         include: [{ 
           model: Rol, 
-          as: 'Rol',
+          as: 'rolData',
           attributes: ['IdRol', 'Nombre', 'Permisos']
         }]
       });
@@ -124,7 +125,7 @@ const authController = {
         case 'inactivo':
           return errorResponse(res, 'Usuario inactivo. Contacte al administrador', 403);
         case 'activo':
-          const rolNombre = usuario.Rol?.Nombre;
+          const rolNombre = usuario.rolData?.Nombre;
           if (rolNombre === 'Usuario') {
             redirectTo = '/cliente/dashboard';
           } else if (rolNombre === 'Administrador') {
@@ -135,17 +136,18 @@ const authController = {
 
       let permisosArray = [];
       if (usuario.IdRol) {
+        // ✅ CAMBIO: as: 'permisoData' en lugar de 'Permiso'
         const detalles = await DetallePermiso.findAll({
           where: { IdRol: usuario.IdRol },
           include: [{ 
             model: Permiso, 
-            as: 'Permiso',
+            as: 'permisoData',
             attributes: ['IdPermiso', 'Nombre']
           }]
         });
         
         permisosArray = detalles
-          .map(d => d.Permiso?.Nombre)    
+          .map(d => d.permisoData?.Nombre)    
           .filter(Boolean);
       }
 
@@ -155,7 +157,7 @@ const authController = {
         correo: usuario.Correo,
         nombre: usuario.Nombre,
         estado: usuario.Estado,
-        rol: usuario.Rol?.Nombre,
+        rol: usuario.rolData?.Nombre,
         rolId: usuario.IdRol,
         permisos: permisosArray
       });
@@ -163,7 +165,7 @@ const authController = {
       const refreshToken = generateRefreshToken({
         id: usuario.IdUsuario,
         correo: usuario.Correo,
-        rol: usuario.Rol?.Nombre,
+        rol: usuario.rolData?.Nombre,
         rolId: usuario.IdRol
       });
 
@@ -173,7 +175,7 @@ const authController = {
           Nombre: usuario.Nombre,
           Correo: usuario.Correo,
           Estado: usuario.Estado,
-          Rol: usuario.Rol?.Nombre,
+          Rol: usuario.rolData?.Nombre,
           permisos: permisosArray
         },
         accessToken,
@@ -199,10 +201,11 @@ const authController = {
 
       const decoded = verifyRefreshToken(refreshToken);
 
+      // ✅ CAMBIO: as: 'rolData' en lugar de 'Rol'
       const usuario = await Usuario.findByPk(decoded.id, {
         include: [{ 
           model: Rol, 
-          as: 'Rol',
+          as: 'rolData',
           attributes: ['IdRol', 'Nombre']
         }]
       });
@@ -217,17 +220,18 @@ const authController = {
 
       let permisosArray = [];
       if (usuario.IdRol) {
+        // ✅ CAMBIO: as: 'permisoData' en lugar de 'Permiso'
         const detalles = await DetallePermiso.findAll({
           where: { IdRol: usuario.IdRol },
           include: [{ 
             model: Permiso, 
-            as: 'Permiso',
+            as: 'permisoData',
             attributes: ['IdPermiso', 'Nombre']
           }]
         });
         
         permisosArray = detalles
-          .map(d => d.Permiso?.Nombre)    
+          .map(d => d.permisoData?.Nombre)    
           .filter(Boolean);
       }
 
@@ -236,7 +240,7 @@ const authController = {
         correo: usuario.Correo,
         nombre: usuario.Nombre,
         estado: usuario.Estado,
-        rol: usuario.Rol?.Nombre,
+        rol: usuario.rolData?.Nombre,
         rolId: usuario.IdRol,
         permisos: permisosArray
       });
@@ -244,7 +248,7 @@ const authController = {
       const newRefreshToken = generateRefreshToken({
         id: usuario.IdUsuario,
         correo: usuario.Correo,
-        rol: usuario.Rol?.Nombre,
+        rol: usuario.rolData?.Nombre,
         rolId: usuario.IdRol
       });
 
@@ -266,10 +270,11 @@ const authController = {
         return errorResponse(res, 'Token no válido', 401);
       }
 
+      // ✅ CAMBIO: as: 'rolData' en lugar de 'Rol'
       const usuario = await Usuario.findByPk(req.usuario.id, { 
         include: [{
           model: Rol,
-          as: 'Rol',
+          as: 'rolData',
           attributes: ['IdRol', 'Nombre']
         }],
         attributes: { exclude: ['Clave'] }
