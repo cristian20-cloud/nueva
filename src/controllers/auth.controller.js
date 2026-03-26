@@ -6,7 +6,7 @@ import Rol from '../models/roles.model.js';
 import Cliente from '../models/clientes.model.js';
 import DetallePermiso from '../models/detallePermisos.model.js';
 import Permiso from '../models/permisos.model.js';
-import { generateToken } from '../utils/jwt.js';
+import { generateToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import { validateLogin, validateRegistro } from '../utils/validationUtils.js';
 
@@ -17,12 +17,10 @@ if (process.env.FIREBASE_API_KEY && process.env.FIREBASE_AUTH_DOMAIN) {
   try {
     const { initializeApp } = await import('firebase/app');
     const { getAuth, sendPasswordResetEmail: sendEmail } = await import('firebase/auth');
-    
     const firebaseConfig = {
       apiKey: process.env.FIREBASE_API_KEY,
       authDomain: process.env.FIREBASE_AUTH_DOMAIN,
     };
-    
     const firebaseApp = initializeApp(firebaseConfig);
     firebaseAuth = getAuth(firebaseApp);
     sendPasswordResetEmail = sendEmail;
@@ -91,8 +89,8 @@ const authController = {
   login: async (req, res) => {
     try {
       const { correo, clave } = req.body;
-
       const errors = validateLogin({ correo, clave });
+      
       if (errors.length > 0) {
         return errorResponse(res, 'Datos inválidos', 400, errors);
       }
@@ -142,25 +140,31 @@ const authController = {
           include: [{ 
             model: Permiso, 
             as: 'Permiso',
-            // ✅ CORREGIDO: 'Nombre' en lugar de 'NombrePermiso'
             attributes: ['IdPermiso', 'Nombre']
           }]
         });
         
-        // ✅ CORREGIDO: Acceder a 'Nombre' en lugar de 'NombrePermiso'
         permisosArray = detalles
-        .map(d => d.Permiso?.Nombre)    
+          .map(d => d.Permiso?.Nombre)    
           .filter(Boolean);
       }
 
-      const token = generateToken({
+      // ✅ GENERAR AMBOS TOKENS
+      const accessToken = generateToken({
         id: usuario.IdUsuario,
-        correo: usuario.Correo,
+gits        correo: usuario.Correo,
         nombre: usuario.Nombre,
         estado: usuario.Estado,
         rol: usuario.Rol?.Nombre,
         rolId: usuario.IdRol,
         permisos: permisosArray
+      });
+
+      const refreshToken = generateRefreshToken({
+        id: usuario.IdUsuario,
+        correo: usuario.Correo,
+        rol: usuario.Rol?.Nombre,
+        rolId: usuario.IdRol
       });
 
       return successResponse(res, {
@@ -172,13 +176,90 @@ const authController = {
           Rol: usuario.Rol?.Nombre,
           permisos: permisosArray
         },
-        token,
+        accessToken,      // ✅ CAMBIADO de 'token' a 'accessToken'
+        refreshToken,     // ✅ AGREGADO
+        token: accessToken, // ✅ Mantener compatibilidad con frontend
         redirectTo
       }, mensaje);
 
     } catch (error) {
       console.error('❌ Error en login:', error);
       return errorResponse(res, 'Error al iniciar sesión', 500, error.message);
+    }
+  },
+
+  // ✅ NUEVO ENDPOINT PARA REFRESCAR TOKEN
+  refresh: async (req, res) => {
+    try {
+      const { refreshToken } = req.body;
+
+      if (!refreshToken) {
+        return errorResponse(res, 'Refresh token requerido', 400);
+      }
+
+      // Verificar refresh token
+      const decoded = verifyRefreshToken(refreshToken);
+
+      // Buscar usuario para verificar que siga activo
+      const usuario = await Usuario.findByPk(decoded.id, {
+        include: [{ 
+          model: Rol, 
+          as: 'Rol',
+          attributes: ['IdRol', 'Nombre']
+        }]
+      });
+
+      if (!usuario) {
+        return errorResponse(res, 'Usuario no encontrado', 404);
+      }
+
+      if (usuario.Estado === 'inactivo') {
+        return errorResponse(res, 'Usuario inactivo', 403);
+      }
+
+      // Generar nuevos tokens
+      let permisosArray = [];
+      if (usuario.IdRol) {
+        const detalles = await DetallePermiso.findAll({
+          where: { IdRol: usuario.IdRol },
+          include: [{ 
+            model: Permiso, 
+            as: 'Permiso',
+            attributes: ['IdPermiso', 'Nombre']
+          }]
+        });
+        
+        permisosArray = detalles
+          .map(d => d.Permiso?.Nombre)    
+          .filter(Boolean);
+      }
+
+      const newAccessToken = generateToken({
+        id: usuario.IdUsuario,
+        correo: usuario.Correo,
+        nombre: usuario.Nombre,
+        estado: usuario.Estado,
+        rol: usuario.Rol?.Nombre,
+        rolId: usuario.IdRol,
+        permisos: permisosArray
+      });
+
+      const newRefreshToken = generateRefreshToken({
+        id: usuario.IdUsuario,
+        correo: usuario.Correo,
+        rol: usuario.Rol?.Nombre,
+        rolId: usuario.IdRol
+      });
+
+      return successResponse(res, {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+        token: newAccessToken // Compatibilidad
+      }, 'Token refrescado exitosamente');
+
+    } catch (error) {
+      console.error('❌ Error en refresh:', error);
+      return errorResponse(res, 'Refresh token inválido o expirado', 403, error.message);
     }
   },
 
@@ -224,7 +305,6 @@ const authController = {
   register: async (req, res) => {
     try {
       const { nombre, correo, clave, idRol } = req.body;
-      
       const existe = await Usuario.findOne({
         where: { Correo: correo.toLowerCase().trim() }
       });
