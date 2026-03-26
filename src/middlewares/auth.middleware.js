@@ -1,5 +1,5 @@
-// middlewares/auth.middleware.js
 import jwt from 'jsonwebtoken';
+import { verifyToken as verifyJwt } from '../utils/jwt.js';
 import Usuario from '../models/usuarios.model.js';
 import Rol from '../models/roles.model.js';
 import DetallePermiso from '../models/detallePermisos.model.js';
@@ -19,7 +19,7 @@ export const verifyToken = async (req, res, next) => {
             });
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = verifyJwt(token);
         
         // 🟢 NUEVO: Verificar estado desde el token primero (más rápido)
         if (decoded.estado === 'inactivo') {
@@ -39,7 +39,7 @@ export const verifyToken = async (req, res, next) => {
 
         // 🟢 MODIFICADO: Incluir nuevos campos
         const usuario = await Usuario.findByPk(decoded.id, {
-            attributes: ['IdUsuario', 'Nombre', 'Correo', 'IdRol', 'Estado', 'Tipo'],
+            attributes: ['IdUsuario', 'Nombre', 'Correo', 'IdRol', 'Estado'],
             include: [{
                 model: Rol,
                 as: 'Rol',
@@ -97,7 +97,7 @@ export const checkRole = (rolesPermitidos) => {
             }
 
             // 🟢 NUEVO: Admin siempre tiene acceso
-            if (req.usuario.Tipo === 'admin') {
+            if (req.usuario.Rol?.Nombre === 'Administrador') {
                 return next();
             }
 
@@ -142,7 +142,7 @@ export const checkPermission = (permisoRequerido) => {
             }
 
             // 🟢 NUEVO: Admin tiene todos los permisos
-            if (req.usuario.Tipo === 'admin') {
+            if (req.usuario.Rol?.Nombre === 'Administrador') {
                 return next();
             }
 
@@ -198,12 +198,12 @@ export const checkClienteAccess = (req, res, next) => {
         }
 
         // Admin puede acceder a cualquier cliente
-        if (req.usuario.Tipo === 'admin') {
+        if (req.usuario.Rol?.Nombre === 'Administrador') {
             return next();
         }
 
         // Cliente solo puede acceder a sus propios datos
-        if (req.usuario.Tipo === 'cliente') {
+        if (req.usuario.Rol?.Nombre === 'Usuario' || req.usuario.Rol?.Nombre === 'Cliente') {
             // El ID del cliente debe coincidir con el ID del usuario
             const clienteId = parseInt(req.params.id);
             if (clienteId === req.usuario.IdUsuario) {
