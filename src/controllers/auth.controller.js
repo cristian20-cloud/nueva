@@ -143,7 +143,7 @@ const authController = {
             model: Permiso, 
             as: 'Permiso',
             // ✅ CORREGIDO: 'Nombre' en lugar de 'NombrePermiso'
-            attributes: ['IdPermiso', 'NombrePermiso']
+            attributes: ['IdPermiso', 'Nombre']
           }]
         });
         
