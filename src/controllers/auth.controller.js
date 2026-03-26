@@ -100,7 +100,7 @@ const authController = {
         where: { Correo: correo.toLowerCase().trim() },
         include: [{ 
           model: Rol, 
-          as: 'rolData',
+          as: 'Rol',
           attributes: ['IdRol', 'Nombre', 'Permisos']
         }]
       });
@@ -125,7 +125,7 @@ const authController = {
         case 'inactivo':
           return errorResponse(res, 'Usuario inactivo. Contacte al administrador', 403);
         case 'activo':
-          const rolNombre = usuario.rolData?.Nombre;
+          const rolNombre = usuario.Rol?.Nombre;
           if (rolNombre === 'Usuario') {
             redirectTo = '/cliente/dashboard';
           } else if (rolNombre === 'Administrador') {
@@ -136,18 +136,18 @@ const authController = {
 
       let permisosArray = [];
       if (usuario.IdRol) {
-        // ✅ CAMBIO: as: 'permisoData' en lugar de 'Permiso'
+        // ✅ CAMBIO: Usar alias 'Permiso' definido en los modelos
         const detalles = await DetallePermiso.findAll({
           where: { IdRol: usuario.IdRol },
           include: [{ 
             model: Permiso, 
-            as: 'permisoData',
+            as: 'Permiso',
             attributes: ['IdPermiso', 'Nombre']
           }]
         });
         
         permisosArray = detalles
-          .map(d => d.permisoData?.Nombre)    
+          .map(d => d.Permiso?.Nombre)    
           .filter(Boolean);
       }
 
@@ -157,7 +157,7 @@ const authController = {
         correo: usuario.Correo,
         nombre: usuario.Nombre,
         estado: usuario.Estado,
-        rol: usuario.rolData?.Nombre,
+        rol: usuario.Rol?.Nombre,
         rolId: usuario.IdRol,
         permisos: permisosArray
       });
@@ -165,7 +165,7 @@ const authController = {
       const refreshToken = generateRefreshToken({
         id: usuario.IdUsuario,
         correo: usuario.Correo,
-        rol: usuario.rolData?.Nombre,
+        rol: usuario.Rol?.Nombre,
         rolId: usuario.IdRol
       });
 
@@ -175,7 +175,7 @@ const authController = {
           Nombre: usuario.Nombre,
           Correo: usuario.Correo,
           Estado: usuario.Estado,
-          Rol: usuario.rolData?.Nombre,
+          Rol: usuario.Rol?.Nombre,
           permisos: permisosArray
         },
         accessToken,
@@ -201,11 +201,11 @@ const authController = {
 
       const decoded = verifyRefreshToken(refreshToken);
 
-      // ✅ CAMBIO: as: 'rolData' en lugar de 'Rol'
+      // ✅ CAMBIO: Usar alias 'Rol' definido en los modelos
       const usuario = await Usuario.findByPk(decoded.id, {
         include: [{ 
           model: Rol, 
-          as: 'rolData',
+          as: 'Rol',
           attributes: ['IdRol', 'Nombre']
         }]
       });
@@ -220,18 +220,18 @@ const authController = {
 
       let permisosArray = [];
       if (usuario.IdRol) {
-        // ✅ CAMBIO: as: 'permisoData' en lugar de 'Permiso'
+        // ✅ CAMBIO: Usar alias 'Permiso' definido en los modelos
         const detalles = await DetallePermiso.findAll({
           where: { IdRol: usuario.IdRol },
           include: [{ 
             model: Permiso, 
-            as: 'permisoData',
+            as: 'Permiso',
             attributes: ['IdPermiso', 'Nombre']
           }]
         });
         
         permisosArray = detalles
-          .map(d => d.permisoData?.Nombre)    
+          .map(d => d.Permiso?.Nombre)    
           .filter(Boolean);
       }
 
@@ -240,7 +240,7 @@ const authController = {
         correo: usuario.Correo,
         nombre: usuario.Nombre,
         estado: usuario.Estado,
-        rol: usuario.rolData?.Nombre,
+        rol: usuario.Rol?.Nombre,
         rolId: usuario.IdRol,
         permisos: permisosArray
       });
@@ -248,7 +248,7 @@ const authController = {
       const newRefreshToken = generateRefreshToken({
         id: usuario.IdUsuario,
         correo: usuario.Correo,
-        rol: usuario.rolData?.Nombre,
+        rol: usuario.Rol?.Nombre,
         rolId: usuario.IdRol
       });
 
@@ -274,7 +274,7 @@ const authController = {
       const usuario = await Usuario.findByPk(req.usuario.id, { 
         include: [{
           model: Rol,
-          as: 'rolData',
+          as: 'Rol',
           attributes: ['IdRol', 'Nombre']
         }],
         attributes: { exclude: ['Clave'] }
