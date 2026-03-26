@@ -143,13 +143,13 @@ const authController = {
             model: Permiso, 
             as: 'Permiso',
             // ✅ CORREGIDO: 'Nombre' en lugar de 'NombrePermiso'
-            attributes: ['IdPermiso', 'Nombre']
+            attributes: ['IdPermiso', 'NombrePermiso']
           }]
         });
         
         // ✅ CORREGIDO: Acceder a 'Nombre' en lugar de 'NombrePermiso'
         permisosArray = detalles
-          .map(d => d.Permiso?.Nombre)
+        .map(d => d.Permiso?.Nombre)    
           .filter(Boolean);
       }
 
