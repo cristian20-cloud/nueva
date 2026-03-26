@@ -152,7 +152,7 @@ const authController = {
       // ✅ GENERAR AMBOS TOKENS
       const accessToken = generateToken({
         id: usuario.IdUsuario,
-gits        correo: usuario.Correo,
+        correo: usuario.Correo,
         nombre: usuario.Nombre,
         estado: usuario.Estado,
         rol: usuario.Rol?.Nombre,
@@ -176,9 +176,9 @@ gits        correo: usuario.Correo,
           Rol: usuario.Rol?.Nombre,
           permisos: permisosArray
         },
-        accessToken,      // ✅ CAMBIADO de 'token' a 'accessToken'
-        refreshToken,     // ✅ AGREGADO
-        token: accessToken, // ✅ Mantener compatibilidad con frontend
+        accessToken,
+        refreshToken,
+        token: accessToken,
         redirectTo
       }, mensaje);
 
@@ -197,10 +197,8 @@ gits        correo: usuario.Correo,
         return errorResponse(res, 'Refresh token requerido', 400);
       }
 
-      // Verificar refresh token
       const decoded = verifyRefreshToken(refreshToken);
 
-      // Buscar usuario para verificar que siga activo
       const usuario = await Usuario.findByPk(decoded.id, {
         include: [{ 
           model: Rol, 
@@ -217,7 +215,6 @@ gits        correo: usuario.Correo,
         return errorResponse(res, 'Usuario inactivo', 403);
       }
 
-      // Generar nuevos tokens
       let permisosArray = [];
       if (usuario.IdRol) {
         const detalles = await DetallePermiso.findAll({
@@ -254,7 +251,7 @@ gits        correo: usuario.Correo,
       return successResponse(res, {
         accessToken: newAccessToken,
         refreshToken: newRefreshToken,
-        token: newAccessToken // Compatibilidad
+        token: newAccessToken
       }, 'Token refrescado exitosamente');
 
     } catch (error) {
