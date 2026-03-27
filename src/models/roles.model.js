@@ -78,7 +78,7 @@ Rol.prototype.agregarPermiso = async function(idPermiso, DetallePermisoModel) {
 };
 
 // ──────────────────────────────────────────────────────────
-// ✅ ASOCIACIONES (ESTO ES LO QUE FALTABA)
+// ✅ ASOCIACIONES
 // ──────────────────────────────────────────────────────────
 Rol.associate = (models) => {
   // Relación inversa: un Rol tiene muchos Usuarios
@@ -88,23 +88,6 @@ Rol.associate = (models) => {
   });
   
   // Relación con DetallePermiso (si existe el modelo)
-  if (models.DetallePermiso) {
-    Rol.hasMany(models.DetallePermiso, {
-      foreignKey: 'IdRol',
-      as: 'detallesPermisos'
-    });
-  }
-};
-
-// ──────────────────────────────────────────────────────────
-// ✅ ASOCIACIONES (AGREGAR ESTO)
-// ──────────────────────────────────────────────────────────
-Rol.associate = (models) => {
-  Rol.hasMany(models.Usuario, {
-    foreignKey: 'IdRol',
-    as: 'usuarios'
-  });
-  
   if (models.DetallePermiso) {
     Rol.hasMany(models.DetallePermiso, {
       foreignKey: 'IdRol',

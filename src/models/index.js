@@ -24,14 +24,14 @@ import Imagen from './imagenes.model.js';
 // ============================================
 
 // Producto ↔ Categoría
-Producto.belongsTo(Categoria, { foreignKey: 'IdCategoria', as: 'Categoria' });
+Producto.belongsTo(Categoria, { foreignKey: 'IdCategoria', as: 'categoriaData' });
 Categoria.hasMany(Producto, { foreignKey: 'IdCategoria', as: 'Productos' });
 
 // Producto ↔ Talla / Imagen
 Producto.hasMany(Talla, { foreignKey: 'IdProducto', as: 'Tallas', onDelete: 'CASCADE' });
 Talla.belongsTo(Producto, { foreignKey: 'IdProducto', as: 'Producto' });
 
-Producto.hasMany(Imagen, { foreignKey: 'IdProducto', as: 'Imagenes', onDelete: 'CASCADE' });
+Producto.hasMany(Imagen, { foreignKey: 'IdProducto', as: 'imagenesAsociadas', onDelete: 'CASCADE' });
 Imagen.belongsTo(Producto, { foreignKey: 'IdProducto', as: 'Producto' });
 
 // ──────────────────────────────────────────────────────────
@@ -78,7 +78,7 @@ DetalleCompra.belongsTo(Compra, { foreignKey: 'IdCompra', as: 'Compra' });
 
 // DetalleCompra ↔ Producto / Talla
 DetalleCompra.belongsTo(Producto, { foreignKey: 'IdProducto', as: 'Producto' });
-DetalleCompra.belongsTo(Talla, { foreignKey: 'IdTalla', as: 'Talla' });
+DetalleCompra.belongsTo(Talla, { foreignKey: 'IdTalla', as: 'tallaData' });
 
 // Venta ↔ Cliente / Estado / DetalleVenta
 Venta.belongsTo(Cliente, { foreignKey: 'IdCliente', as: 'Cliente' });

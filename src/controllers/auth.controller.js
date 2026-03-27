@@ -95,7 +95,7 @@ const authController = {
         return errorResponse(res, 'Datos inválidos', 400, errors);
       }
 
-      // ✅ CAMBIO: as: 'rolData' en lugar de 'Rol'
+      // ✅ CORREGIDO: "Correo" sin espacio + alias 'rolData'
       const usuario = await Usuario.findOne({
         where: { Correo: correo.toLowerCase().trim() },
         include: [{ 
@@ -135,8 +135,12 @@ const authController = {
       }
 
       let permisosArray = [];
-      if (usuario.IdRol) {
-        // ✅ CAMBIO: Usar alias 'Permiso' definido en los modelos
+      const rolNombre = usuario.rolData?.Nombre;
+
+      if (rolNombre === 'Administrador') {
+        const todosLosPermisos = await Permiso.findAll({ attributes: ['Nombre'] });
+        permisosArray = todosLosPermisos.map(p => p.Nombre);
+      } else if (usuario.IdRol) {
         const detalles = await DetallePermiso.findAll({
           where: { IdRol: usuario.IdRol },
           include: [{ 
@@ -147,11 +151,10 @@ const authController = {
         });
         
         permisosArray = detalles
-          .map(d => d.permisoData?.Nombre)    
+          .map(d => d.permisoData?.Nombre)
           .filter(Boolean);
       }
 
-      // ✅ GENERAR AMBOS TOKENS
       const accessToken = generateToken({
         id: usuario.IdUsuario,
         correo: usuario.Correo,
@@ -190,7 +193,6 @@ const authController = {
     }
   },
 
-  // ✅ NUEVO ENDPOINT PARA REFRESCAR TOKEN
   refresh: async (req, res) => {
     try {
       const { refreshToken } = req.body;
@@ -201,7 +203,6 @@ const authController = {
 
       const decoded = verifyRefreshToken(refreshToken);
 
-      // ✅ CAMBIO: Usar alias 'Rol' definido en los modelos
       const usuario = await Usuario.findByPk(decoded.id, {
         include: [{ 
           model: Rol, 
@@ -219,8 +220,12 @@ const authController = {
       }
 
       let permisosArray = [];
-      if (usuario.IdRol) {
-        // ✅ CAMBIO: Usar alias 'Permiso' definido en los modelos
+      const rolNombre = usuario.rolData?.Nombre;
+
+      if (rolNombre === 'Administrador') {
+        const todosLosPermisos = await Permiso.findAll({ attributes: ['Nombre'] });
+        permisosArray = todosLosPermisos.map(p => p.Nombre);
+      } else if (usuario.IdRol) {
         const detalles = await DetallePermiso.findAll({
           where: { IdRol: usuario.IdRol },
           include: [{ 
@@ -231,7 +236,7 @@ const authController = {
         });
         
         permisosArray = detalles
-          .map(d => d.permisoData?.Nombre)    
+          .map(d => d.permisoData?.Nombre)
           .filter(Boolean);
       }
 
@@ -266,26 +271,12 @@ const authController = {
 
   verify: async (req, res) => {
     try {
-      if (!req.usuario) {
-        return errorResponse(res, 'Token no válido', 401);
-      }
-
-      // ✅ CAMBIO: as: 'rolData' en lugar de 'Rol'
-      const usuario = await Usuario.findByPk(req.usuario.id, { 
-        include: [{
-          model: Rol,
-          as: 'rolData',
-          attributes: ['IdRol', 'Nombre']
-        }],
-        attributes: { exclude: ['Clave'] }
-      });
+      // ✅ Ya no buscamos en la base de datos de nuevo
+      // El usuario viene cargado desde el middleware verifyToken
+      const usuario = req.usuario;
 
       if (!usuario) {
-        return errorResponse(res, 'Usuario no encontrado', 401);
-      }
-
-      if (usuario.Estado === 'inactivo') {
-        return errorResponse(res, 'Usuario inactivo', 403);
+        return errorResponse(res, 'Sesión no válida', 401);
       }
 
       let redirectTo = null;
@@ -293,20 +284,42 @@ const authController = {
         redirectTo = '/pendiente-aprobacion';
       }
 
+      let permisosArray = [];
+      const rolNombre = usuario.rolData?.Nombre;
+
+      // Inyectamos permisos dinámicos si es Administrador
+      if (rolNombre === 'Administrador') {
+        const todos = await Permiso.findAll({ attributes: ['Nombre'] });
+        permisosArray = todos.map(p => p.Nombre);
+      } else if (usuario.IdRol) {
+        const detalles = await DetallePermiso.findAll({
+          where: { IdRol: usuario.IdRol },
+          include: [{ 
+            model: Permiso, as: 'permisoData', attributes: ['IdPermiso', 'Nombre']
+          }]
+        });
+        permisosArray = detalles.map(d => d.permisoData?.Nombre).filter(Boolean);
+      }
+
+      // Devolvemos el usuario completo con sus permisos
       return successResponse(res, {
-        usuario: usuario.toJSON(),
+        usuario: {
+          ...usuario.toJSON(),
+          permisos: permisosArray
+        },
         redirectTo
-      }, 'Token válido');
+      }, 'Sesión activa y verificada');
 
     } catch (error) {
       console.error('❌ Error en verify:', error);
-      return errorResponse(res, 'Error al verificar token', 500, error.message);
+      return errorResponse(res, 'Error al verificar sesión', 500, error.message);
     }
   },
 
   register: async (req, res) => {
     try {
       const { nombre, correo, clave, idRol } = req.body;
+
       const existe = await Usuario.findOne({
         where: { Correo: correo.toLowerCase().trim() }
       });

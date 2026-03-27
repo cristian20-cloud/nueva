@@ -26,7 +26,7 @@ const productoController = {
             const { count, rows } = await Producto.findAndCountAll({
                 where: whereClause,
                 include: [
-                    { model: Categoria, as: 'Categoria', attributes: ['Nombre'] },
+                    { model: Categoria, as: 'categoriaData', attributes: ['Nombre'] },
                     { model: Talla, as: 'Tallas', attributes: ['IdTalla', 'Nombre', 'Cantidad'] }
                 ],
                 limit: parseInt(limit),
@@ -67,7 +67,7 @@ const productoController = {
 
             const producto = await Producto.findByPk(id, {
                 include: [
-                    { model: Categoria, as: 'Categoria', attributes: ['IdCategoria', 'Nombre'] },
+                    { model: Categoria, as: 'categoriaData', attributes: ['IdCategoria', 'Nombre'] },
                     { model: Talla, as: 'Tallas', attributes: ['IdTalla', 'Nombre', 'Cantidad'] }
                 ]
             });

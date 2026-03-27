@@ -22,7 +22,7 @@ const detalleCompraController = {
           },
           {
             model: Talla,
-            as: 'Talla',
+            as: 'tallaData',
             attributes: ['IdTalla', 'Nombre']
           },
           {
@@ -64,7 +64,7 @@ const detalleCompraController = {
           },
           {
             model: Talla,
-            as: 'Talla',
+            as: 'tallaData',
             attributes: ['IdTalla', 'Nombre']
           }
         ],
@@ -86,8 +86,8 @@ const detalleCompraController = {
           PrecioVenta: detalle.Producto?.PrecioVenta
         },
         Talla: {
-          IdTalla: detalle.Talla?.IdTalla,
-          Nombre: detalle.Talla?.Nombre || 'Sin talla'
+          IdTalla: detalle.tallaData?.IdTalla,
+          Nombre: detalle.tallaData?.Nombre || 'Sin talla'
         },
         Cantidad: detalle.Cantidad,
         PrecioCompra: detalle.PrecioCompra,
@@ -129,7 +129,7 @@ const detalleCompraController = {
           },
           {
             model: Talla,
-            as: 'Talla',
+            as: 'tallaData',
             attributes: ['IdTalla', 'Nombre']
           },
           {

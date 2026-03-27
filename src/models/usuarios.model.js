@@ -136,7 +136,7 @@ Usuario.buscarPendientes = async function() {
 };
 
 // ──────────────────────────────────────────────────────────
-// ✅ ASOCIACIONES (ESTO ES LO QUE FALTABA)
+// ✅ ASOCIACIONES
 // ──────────────────────────────────────────────────────────
 Usuario.associate = (models) => {
   // Relación con Rol (Usuario pertenece a un Rol)
@@ -147,24 +147,6 @@ Usuario.associate = (models) => {
   });
   
   // Relación con Cliente (si existe el modelo)
-  if (models.Cliente) {
-    Usuario.hasOne(models.Cliente, {
-      foreignKey: 'IdUsuario',
-      as: 'clienteData'
-    });
-  }
-};
-
-// ──────────────────────────────────────────────────────────
-// ✅ ASOCIACIONES (AGREGAR ESTO)
-// ──────────────────────────────────────────────────────────
-Usuario.associate = (models) => {
-  Usuario.belongsTo(models.Rol, {
-    foreignKey: 'IdRol',
-    as: 'rolData',
-    targetKey: 'IdRol'
-  });
-  
   if (models.Cliente) {
     Usuario.hasOne(models.Cliente, {
       foreignKey: 'IdUsuario',

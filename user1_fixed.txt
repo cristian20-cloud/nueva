@@ -1,0 +1,8 @@
+﻿[dotenv@17.3.1] injecting env (16) from .env -- tip: ­ƒñû agentic secret storage: https://dotenvx.com/as2
+{
+  "IdUsuario": 1,
+  "Nombre": "Duvan Stiven Mariaca Cartagena",
+  "Correo": "duvann1991@gmail.com",
+  "Estado": "true",
+  "IdRol": 1
+}
