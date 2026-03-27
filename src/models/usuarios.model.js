@@ -1,4 +1,3 @@
-
 // models/usuarios.model.js
 import { DataTypes, Op } from 'sequelize';
 import { sequelize } from '../config/db.js';
@@ -39,7 +38,6 @@ const Usuario = sequelize.define('Usuario', {
       len: { args: [6, 100], msg: 'La contraseña debe tener al menos 6 caracteres' }
     }
   },
-  // ✅ CAMPO CORREGIDO: VARCHAR + validación en lugar de ENUM
   Estado: {
     type: DataTypes.STRING(20),
     allowNull: true,
@@ -85,9 +83,8 @@ const Usuario = sequelize.define('Usuario', {
 });
 
 // ──────────────────────────────────────────────────────────
-// Métodos personalizados
+// ✅ MÉTODOS PERSONALIZADOS
 // ──────────────────────────────────────────────────────────
-
 Usuario.prototype.validarClave = async function(clave) {
   return await bcrypt.compare(clave, this.Clave);
 };
@@ -107,10 +104,8 @@ Usuario.prototype.estaPendiente = function() {
 };
 
 // ──────────────────────────────────────────────────────────
-// Métodos estáticos
+// ✅ MÉTODOS ESTÁTICOS
 // ──────────────────────────────────────────────────────────
-
-// Buscar con filtros
 Usuario.buscarConFiltros = async function(filtros) {
   const { search, rol, estado, page = 1, limit = 10 } = filtros;
   const whereClause = {};
@@ -126,19 +121,38 @@ Usuario.buscarConFiltros = async function(filtros) {
   
   return await this.findAndCountAll({
     where: whereClause,
-    include: [{ association: 'Rol' }],  // ← Asegurar que la asociación existe
+    include: [{ association: 'rolData' }],  // ← Usar el alias definido en associate
     limit: parseInt(limit),
     offset: (page - 1) * limit,
     order: [['Nombre', 'ASC']]
   });
 };
 
-// Buscar usuarios pendientes
 Usuario.buscarPendientes = async function() {
   return await this.findAll({
     where: { Estado: 'pendiente' },
-    include: [{ association: 'Rol' }]
+    include: [{ association: 'rolData' }]  // ← Usar el alias definido en associate
   });
+};
+
+// ──────────────────────────────────────────────────────────
+// ✅ ASOCIACIONES (ESTO ES LO QUE FALTABA)
+// ──────────────────────────────────────────────────────────
+Usuario.associate = (models) => {
+  // Relación con Rol (Usuario pertenece a un Rol)
+  Usuario.belongsTo(models.Rol, {
+    foreignKey: 'IdRol',
+    as: 'rolData',        // ← Alias que usas en auth.controller.js
+    targetKey: 'IdRol'
+  });
+  
+  // Relación con Cliente (si existe el modelo)
+  if (models.Cliente) {
+    Usuario.hasOne(models.Cliente, {
+      foreignKey: 'IdUsuario',
+      as: 'clienteData'
+    });
+  }
 };
 
 export default Usuario;

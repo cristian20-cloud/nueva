@@ -1,3 +1,4 @@
+// src/models/index.js
 import { sequelize } from '../config/db.js';
 
 // 🔹 Importar modelos
@@ -19,7 +20,7 @@ import Estado from './estado.model.js';
 import Imagen from './imagenes.model.js';
 
 // ============================================
-// ✅ ASOCIACIONES
+// ✅ ASOCIACIONES (CORREGIDAS - ALIAS COINCIDEN CON CONTROLLER)
 // ============================================
 
 // Producto ↔ Categoría
@@ -33,13 +34,23 @@ Talla.belongsTo(Producto, { foreignKey: 'IdProducto', as: 'Producto' });
 Producto.hasMany(Imagen, { foreignKey: 'IdProducto', as: 'Imagenes', onDelete: 'CASCADE' });
 Imagen.belongsTo(Producto, { foreignKey: 'IdProducto', as: 'Producto' });
 
-// Usuario ↔ Rol / Cliente
-Usuario.belongsTo(Rol, { foreignKey: 'IdRol', as: 'Rol' });
-Rol.hasMany(Usuario, { foreignKey: 'IdRol', as: 'Usuarios' });
+// ──────────────────────────────────────────────────────────
+// ✅ Usuario ↔ Rol / Cliente (ALIAS CORREGIDOS)
+// ──────────────────────────────────────────────────────────
+Usuario.belongsTo(Rol, { 
+  foreignKey: 'IdRol', 
+  as: 'rolData'  // ← ✅ CAMBIADO: De 'Rol' a 'rolData' para coincidir con auth.controller.js
+});
+Rol.hasMany(Usuario, { 
+  foreignKey: 'IdRol', 
+  as: 'usuarios' 
+});
 Usuario.hasOne(Cliente, { foreignKey: 'IdUsuario', as: 'Cliente' });
 Cliente.belongsTo(Usuario, { foreignKey: 'IdUsuario', as: 'Usuario' });
 
-// Rol ↔ Permiso (Many-to-Many)
+// ──────────────────────────────────────────────────────────
+// ✅ Rol ↔ Permiso (Many-to-Many) - ALIAS CORREGIDOS
+// ──────────────────────────────────────────────────────────
 Rol.belongsToMany(Permiso, { 
     through: DetallePermiso, 
     foreignKey: 'IdRol', 
@@ -53,7 +64,10 @@ Permiso.belongsToMany(Rol, {
     as: 'Roles' 
 });
 DetallePermiso.belongsTo(Rol, { foreignKey: 'IdRol', as: 'Rol' });
-DetallePermiso.belongsTo(Permiso, { foreignKey: 'IdPermiso', as: 'Permiso' });
+DetallePermiso.belongsTo(Permiso, { 
+  foreignKey: 'IdPermiso', 
+  as: 'permisoData'  // ← ✅ CAMBIADO: De 'Permiso' a 'permisoData' para coincidir con controller
+});
 
 // Compra ↔ Proveedor / DetalleCompra
 Compra.belongsTo(Proveedor, { foreignKey: 'IdProveedor', as: 'Proveedor' });
@@ -80,7 +94,7 @@ DetalleVenta.belongsTo(Venta, { foreignKey: 'IdVenta', as: 'Venta' });
 DetalleVenta.belongsTo(Producto, { foreignKey: 'IdProducto', as: 'Producto' });
 DetalleVenta.belongsTo(Talla, { foreignKey: 'IdTalla', as: 'Talla' });
 
-// 🔁 Devoluciones ↔ Productos (2 relaciones - CORREGIDO)
+// 🔁 Devoluciones ↔ Productos (2 relaciones)
 Devolucion.belongsTo(Producto, { 
     foreignKey: 'IdProductoOriginal', 
     as: 'ProductoOriginal',
@@ -103,6 +117,13 @@ Devolucion.belongsTo(Venta, {
 // ✅ EXPORTAR
 // ============================================
 export {
+    sequelize,
+    Usuario, Rol, Categoria, Producto, Talla, Proveedor, Cliente,
+    Compra, DetalleCompra, Venta, DetalleVenta, Devolucion,
+    Permiso, DetallePermiso, Estado, Imagen
+};
+
+export default {
     sequelize,
     Usuario, Rol, Categoria, Producto, Talla, Proveedor, Cliente,
     Compra, DetalleCompra, Venta, DetalleVenta, Devolucion,
