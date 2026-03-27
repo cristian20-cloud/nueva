@@ -155,4 +155,24 @@ Usuario.associate = (models) => {
   }
 };
 
+// ──────────────────────────────────────────────────────────
+// ✅ ASOCIACIONES (AGREGAR ESTO)
+// ──────────────────────────────────────────────────────────
+Usuario.associate = (models) => {
+  Usuario.belongsTo(models.Rol, {
+    foreignKey: 'IdRol',
+    as: 'rolData',
+    targetKey: 'IdRol'
+  });
+  
+  if (models.Cliente) {
+    Usuario.hasOne(models.Cliente, {
+      foreignKey: 'IdUsuario',
+      as: 'clienteData'
+    });
+  }
+};
+
+
+
 export default Usuario;

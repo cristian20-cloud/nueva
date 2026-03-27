@@ -96,4 +96,22 @@ Rol.associate = (models) => {
   }
 };
 
+// ──────────────────────────────────────────────────────────
+// ✅ ASOCIACIONES (AGREGAR ESTO)
+// ──────────────────────────────────────────────────────────
+Rol.associate = (models) => {
+  Rol.hasMany(models.Usuario, {
+    foreignKey: 'IdRol',
+    as: 'usuarios'
+  });
+  
+  if (models.DetallePermiso) {
+    Rol.hasMany(models.DetallePermiso, {
+      foreignKey: 'IdRol',
+      as: 'detallesPermisos'
+    });
+  }
+};
+
+
 export default Rol;
